@@ -1,7 +1,7 @@
 <!doctype html>
 <html lang="fr" data-theme="dark">
 <head>
-<meta name="build" content="202611060817">
+<meta name="build" content="202611060823">
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover,user-scalable=no">
 <title>Sagittaire</title>
@@ -196,7 +196,7 @@ dialog::backdrop{background:rgba(5,10,20,.6)}
 <script>
 (function(){
 "use strict";
-var BUILD = "202611060817";
+var BUILD = "202611060823";
 /* ================= Utilitaires ================= */
 const $ = id => document.getElementById(id);
 const esc = s => String(s == null ? "" : s).replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
@@ -348,7 +348,19 @@ function confirmBox(msg, okLabel){
 }
 
 /* ----- Connexion d'un archer (nom + NIP à 4 chiffres) ----- */
-function loginDialog(){
+// Archer déjà connecté : seulement Déconnexion ou Annuler (et changer d'archer)
+function accountDialog(){
+  const a = archers[me.id] || {};
+  dialog('<h2>' + esc(me.name) + '</h2><p class="muted small">' + esc([a.club, BOW_TYPES[a.bow]].filter(Boolean).join(" · ") || "Connecté sur cet appareil") + '</p>' +
+    '<div class="acts"><button class="btn" data-close>Annuler</button><button class="btn danger" id="acOut">Déconnexion</button></div>' +
+    '<button class="btn ghost full small" id="acSwitch" style="margin-top:.5rem">Changer d\'archer…</button>',
+  b => {
+    b.querySelector("#acOut").onclick = () => { setMe(null); $("dlg").close(); toast("Déconnecté."); location.hash = "#/"; route(); };
+    b.querySelector("#acSwitch").onclick = () => { $("dlg").close(); setTimeout(() => loginDialog(true), 50); };
+  });
+}
+function loginDialog(force){
+  if(me && !force){ accountDialog(); return; }
   const list = Object.keys(archers).map(k => Object.assign({ id: k }, archers[k])).filter(a => a.name).sort((a, b) => a.name.localeCompare(b.name, "fr"));
   dialog('<h2>' + (me ? "Changer d'archer" : "Se connecter") + '</h2>' +
     '<p class="muted small">Chaque archer a un NIP de 4 chiffres pour protéger ses tirs. Un entraîneur peut consulter les résultats sans se connecter.</p>' +
@@ -356,12 +368,11 @@ function loginDialog(){
     '<div id="lgIn"><label class="f">Archer</label><select class="in" id="lgWho"><option value="">' + (list.length ? "Choisir…" : "Aucun profil encore") + '</option>' + list.map(a => '<option value="' + a.id + '">' + esc(a.name) + (a.club ? " — " + esc(a.club) : "") + '</option>').join("") + '</select></div>' +
     '<div id="lgNew" hidden><label class="f">Nom complet</label><input class="in" id="lgName" maxlength="40" autocomplete="name"><label class="f">Club (facultatif)</label><input class="in" id="lgClub" maxlength="40"><label class="f">Type d\'arc principal</label><select class="in" id="lgBow">' + Object.keys(BOW_TYPES).map(k => '<option value="' + k + '">' + BOW_TYPES[k] + '</option>').join("") + '</select></div>' +
     '<label class="f">NIP (4 chiffres)</label><input class="in" id="lgPin" inputmode="numeric" maxlength="4" pattern="[0-9]*" autocomplete="off" style="font-size:1.4rem;letter-spacing:.5em;text-align:center">' +
-    '<div class="acts">' + (me ? '<button class="btn danger" id="lgOut">Déconnexion</button>' : '<button class="btn" data-close>Annuler</button>') + '<button class="btn pri" id="lgGo">Continuer</button></div>',
+    '<div class="acts"><button class="btn" data-close>Annuler</button><button class="btn pri" id="lgGo">Continuer</button></div>',
   b => {
     let mode = "in";
     b.querySelectorAll("#lgSeg button").forEach(x => x.onclick = () => { mode = x.dataset.m; b.querySelectorAll("#lgSeg button").forEach(y => y.classList.toggle("on", y === x)); b.querySelector("#lgIn").hidden = mode !== "in"; b.querySelector("#lgNew").hidden = mode !== "new"; });
     if(!list.length) b.querySelector("#lgSeg [data-m=new]").click();
-    const out = b.querySelector("#lgOut"); if(out) out.onclick = () => { setMe(null); $("dlg").close(); route(); };
     b.querySelector("#lgGo").onclick = () => {
       const pin = b.querySelector("#lgPin").value.trim();
       if(!/^\d{4}$/.test(pin)){ toast("Le NIP doit avoir 4 chiffres."); return; }
@@ -445,9 +456,10 @@ function viewHome(v){
     v.appendChild(h('<div class="card" style="text-align:center;padding:1.4rem 1rem"><img class="hero-logo" src="logo.jpg" alt="Club Le Sagittaire" onerror="this.remove()">' +
       '<h2 style="font-size:1.4rem;margin:.6rem 0 .3rem">Bienvenue sur Sagittaire</h2><p class="muted">Placez chaque flèche sur la cible, suivez votre progression, réglez votre viseur et participez aux compétitions de votre club en direct.</p>' +
       '<div class="row" style="justify-content:center;margin-top:.8rem"><button class="btn pri" id="hLogin">Se connecter / créer un profil</button><a class="btn" href="#/comps">🏆 Voir les compétitions</a></div></div>'));
-    $("hLogin").onclick = loginDialog;
+    $("hLogin").onclick = () => loginDialog();
     archersCard(v); return;
   }
+  v.appendChild(h('<img class="hero-logo" src="logo.jpg" alt="Club Le Sagittaire" style="max-width:260px;margin-bottom:.8rem" onerror="this.remove()">'));
   const hero = h('<div class="hero"><div class="kpi"><b id="kSes">–</b><span>Séances</span></div><div class="kpi"><b id="kArr">–</b><span>Flèches</span></div><div class="kpi"><b id="kAvg">–</b><span>Moy./flèche (30 j)</span></div></div>');
   v.appendChild(hero);
   v.appendChild(h('<div class="row" style="margin-bottom:.8rem"><a class="btn pri grow" href="#/new">🎯 Nouvelle séance</a><a class="btn" href="#/stats">📈 Mes stats</a></div>'));
@@ -495,7 +507,7 @@ function viewArcher(v, aid){
 
 /* ================= Nouvelle séance ================= */
 function viewNew(v){
-  if(!me){ v.appendChild(h('<div class="card"><h2>Nouvelle séance</h2><p class="muted">Connectez-vous pour enregistrer vos tirs.</p><button class="btn pri" id="nLogin">Se connecter</button></div>')); $("nLogin").onclick = loginDialog; return; }
+  if(!me){ v.appendChild(h('<div class="card"><h2>Nouvelle séance</h2><p class="muted">Connectez-vous pour enregistrer vos tirs.</p><button class="btn pri" id="nLogin">Se connecter</button></div>')); $("nLogin").onclick = () => loginDialog(); return; }
   let pick = LS.get("sg_lastRound", "free"), cfg = LS.get("sg_freeCfg", { d: 18, face: "wa10", size: 40, ape: 3 });
   const gear = { bows: {}, arrows: {} };
   const c = h('<div class="card"><h2>Nouvelle séance</h2>' +
@@ -760,7 +772,7 @@ function isX(a){ return !!(a && a.X); }
 
 /* ================= Statistiques ================= */
 function viewStats(v, aid){
-  if(!aid){ v.appendChild(h('<div class="card"><h2>Statistiques</h2><p class="muted">Connectez-vous ou choisissez un archer à l\'accueil.</p><button class="btn pri" id="sLogin">Se connecter</button></div>')); $("sLogin").onclick = loginDialog; return; }
+  if(!aid){ v.appendChild(h('<div class="card"><h2>Statistiques</h2><p class="muted">Connectez-vous ou choisissez un archer à l\'accueil.</p><button class="btn pri" id="sLogin">Se connecter</button></div>')); $("sLogin").onclick = () => loginDialog(); return; }
   let period = LS.get("sg_period", 90), distF = "";
   v.appendChild(h('<div class="card"><h2 id="stTitle">Statistiques</h2><div class="seg" id="stPer"><button data-p="30">30 j</button><button data-p="90">90 j</button><button data-p="365">1 an</button><button data-p="0">Tout</button></div><label class="f">Distance / blason</label><select class="in" id="stDist"></select></div>'));
   v.appendChild(h('<div class="hero" id="stHero"></div>'));
@@ -817,7 +829,7 @@ function lineChart(P, max){
 
 /* ================= Matériel ================= */
 function viewGear(v){
-  if(!me){ v.appendChild(h('<div class="card"><h2>Matériel</h2><p class="muted">Connectez-vous pour gérer vos arcs, flèches et repères de visée.</p><button class="btn pri" id="gLogin">Se connecter</button></div>')); $("gLogin").onclick = loginDialog; return; }
+  if(!me){ v.appendChild(h('<div class="card"><h2>Matériel</h2><p class="muted">Connectez-vous pour gérer vos arcs, flèches et repères de visée.</p><button class="btn pri" id="gLogin">Se connecter</button></div>')); $("gLogin").onclick = () => loginDialog(); return; }
   v.appendChild(h('<div class="card"><h2>Mes arcs</h2><ul class="list" id="gBows"></ul><button class="btn sm" id="gAddBow" style="margin-top:.5rem">+ Ajouter un arc</button></div>'));
   v.appendChild(h('<div class="card"><h2>Mes flèches</h2><ul class="list" id="gArr"></ul><button class="btn sm" id="gAddArr" style="margin-top:.5rem">+ Ajouter un jeu de flèches</button></div>'));
   v.appendChild(h('<div class="card"><h2>Mon profil</h2><div id="gProf"></div></div>'));
@@ -962,7 +974,7 @@ function viewComp(v, cid){
 /* ================= Démarrage ================= */
 function boot(){
   initDB(); renderWho();
-  $("whoBtn").onclick = loginDialog;
+  $("whoBtn").onclick = () => loginDialog();
   $("themeBtn").onclick = () => { const t = document.documentElement.getAttribute("data-theme") === "dark" ? "light" : "dark"; document.documentElement.setAttribute("data-theme", t); LS.set("sg_theme", t); try{ localStorage.setItem("sg_theme", t); }catch(e){} $("themeBtn").textContent = t === "dark" ? "☀️" : "🌙"; };
   $("themeBtn").textContent = document.documentElement.getAttribute("data-theme") === "dark" ? "☀️" : "🌙";
   if(DB){ try{ DB.ref(".info/connected").on("value", s => { online = !!s.val(); $("netDot").classList.toggle("on", online); $("netDot").title = online ? "En ligne" : "Hors ligne — les tirs seront envoyés au retour du réseau"; }); }catch(e){} }

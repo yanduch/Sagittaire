@@ -1,7 +1,7 @@
 <!doctype html>
 <html lang="fr" data-theme="dark">
 <head>
-<meta name="build" content="202611061118">
+<meta name="build" content="202611061129">
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover,user-scalable=no">
 <title>Sagittaire</title>
@@ -114,7 +114,7 @@ input[type=date].in,input[type=time].in{color-scheme:dark}
 .target-box.ro{padding:0}.target-box.ro .scroll-g{display:none}.target-box.ro svg.tgt{touch-action:pan-y}
 :root[data-theme="light"] .target-box{background:radial-gradient(circle at 50% 40%,#E8EDF4 0%,#CBD4E0 75%)}
 .target-box svg.tgt{display:block;width:100%;height:auto;aspect-ratio:1/1;max-height:58vh;margin:0 auto}
-.loupe{position:fixed;width:132px;height:132px;border-radius:50%;border:3px solid #fff;box-shadow:0 8px 24px rgba(0,0,0,.5);overflow:hidden;pointer-events:none;background:#0B1220;display:none;z-index:50}
+.loupe{position:fixed;width:150px;height:150px;border-radius:50%;border:3px solid #fff;box-shadow:0 8px 24px rgba(0,0,0,.5);overflow:hidden;pointer-events:none;background:#0B1220;display:none;z-index:50}
 .loupe svg{width:100%;height:100%}
 .loupe .lbl{position:absolute;bottom:6px;left:0;right:0;text-align:center;font-weight:900;font-size:1rem;color:#fff;text-shadow:0 1px 3px #000}
 .zoom-tools{position:absolute;right:.5rem;top:.5rem;display:flex;flex-direction:column;gap:.35rem;z-index:3}
@@ -211,7 +211,7 @@ dialog::backdrop{background:rgba(5,10,20,.6)}
 <script>
 (function(){
 "use strict";
-var BUILD = "202611061118";
+var BUILD = "202611061129";
 /* ================= Utilitaires ================= */
 const $ = id => document.getElementById(id);
 const esc = s => String(s == null ? "" : s).replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
@@ -903,12 +903,9 @@ function viewShoot(v, aid, sid){
   }
   function showLoupe(ev, q){
     const p = part(), sc = fromView(p.face, q.x, q.y), r = scoreAt(p.face, p.size, sc.x, sc.y);
-    // la loupe est toujours AU-DESSUS du doigt (jamais en dessous) ; tout en haut de l'écran, elle se décale de côté
-    const vw = window.innerWidth, fy = ev.clientY - (ev.pointerType === "mouse" ? 0 : OFFSET);
-    let lx = ev.clientX - 66, ly = fy - 132 - 26;
-    if(ly < 6){ ly = 6; lx = ev.clientX < vw / 2 ? ev.clientX + 40 : ev.clientX - 132 - 40; }
-    lx = Math.max(4, Math.min(vw - 136, lx));
-    lp.style.left = lx + "px"; lp.style.top = ly + "px"; lp.style.display = "block";
+    // la loupe reste à un endroit FIXE : centrée juste au-dessus de la cible (elle ne suit pas le doigt)
+    if(lp.style.display !== "block"){ const br = box.getBoundingClientRect(), L = lp.offsetWidth || 150;
+      lp.style.left = Math.round(br.left + br.width / 2 - L / 2) + "px"; lp.style.top = Math.max(6, Math.round(br.top - L - 8)) + "px"; lp.style.display = "block"; }
     lp.querySelector("svg").setAttribute("viewBox", (q.x - 0.14) + " " + (q.y - 0.14) + " 0.28 0.28");
     lp.querySelector("path").setAttribute("d", "M" + (q.x - 0.14) + " " + q.y + "H" + (q.x + 0.14) + "M" + q.x + " " + (q.y - 0.14) + "V" + (q.y + 0.14));
     lp.querySelector("path").setAttribute("stroke-width", ".003");

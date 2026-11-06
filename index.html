@@ -1,7 +1,7 @@
 <!doctype html>
 <html lang="fr" data-theme="dark">
 <head>
-<meta name="build" content="202611060756">
+<meta name="build" content="202611060758">
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover,user-scalable=no">
 <title>Sagittaire</title>
@@ -195,7 +195,7 @@ dialog::backdrop{background:rgba(5,10,20,.6)}
 <script>
 (function(){
 "use strict";
-var BUILD = "202611060756";
+var BUILD = "202611060758";
 /* ================= Utilitaires ================= */
 const $ = id => document.getElementById(id);
 const esc = s => String(s == null ? "" : s).replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
@@ -372,12 +372,12 @@ function needMe(){ if(me) return true; loginDialog(); return false; }
 let viewCleanup = null;
 function route(){
   if(viewCleanup){ try{ viewCleanup(); }catch(e){} viewCleanup = null; }
-  unsubAll(); keepArchers();
+  unsubAll(); if(DB) keepArchers();
   const hsh = location.hash.replace(/^#\/?/, ""), p = hsh.split("/");
   const navKey = { "": "home", new: "new", s: "new", stats: "stats", comps: "comps", c: "comps", gear: "gear", a: "home" }[p[0]] || "home";
   document.querySelectorAll("#nav a").forEach(a => a.classList.toggle("on", a.dataset.nav === navKey));
   const v = $("view"); v.innerHTML = ""; window.scrollTo(0, 0);
-  if(!DB){ v.appendChild(h('<div class="card"><h2>Hors ligne</h2><p class="muted">Impossible de joindre la base de données. Vérifiez la connexion Internet puis rechargez la page.</p></div>')); return; }
+  if(!DB){ v.appendChild(h('<div class="card"><h2>Connexion impossible</h2><p class="muted">La base de données n\'a pas pu être chargée. Vérifiez la connexion Internet puis rechargez la page.</p><p class="muted small">Dans l\'aperçu d\'un fichier, la base est bloquée : ouvrez plutôt le site en ligne, yanduch.github.io/Sagittaire.</p><button class="btn" onclick="location.reload()">↻ Recharger</button></div>')); return; }
   if(p[0] === "new") return viewNew(v);
   if(p[0] === "s") return viewShoot(v, p[1], p[2]);
   if(p[0] === "stats") return viewStats(v, p[1] || (me && me.id));

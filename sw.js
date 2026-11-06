@@ -1,6 +1,6 @@
 // Sagittaire : réseau d'abord, copie de secours hors ligne
-const C = "sagittaire-v1";
-self.addEventListener("install", e => { self.skipWaiting(); e.waitUntil(caches.open(C).then(c => c.addAll(["./", "./icon.svg", "./manifest.webmanifest"]).catch(() => {}))); });
+const C = "sagittaire-v2";
+self.addEventListener("install", e => { self.skipWaiting(); e.waitUntil(caches.open(C).then(c => c.addAll(["./", "./logo.jpg", "./manifest.webmanifest"]).catch(() => {}))); });
 self.addEventListener("activate", e => e.waitUntil(self.clients.claim()));
 self.addEventListener("fetch", e => {
   const u = new URL(e.request.url);

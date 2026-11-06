@@ -1,0 +1,965 @@
+<!doctype html>
+<html lang="fr" data-theme="dark">
+<head>
+<meta name="build" content="202611060756">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover,user-scalable=no">
+<title>Sagittaire</title>
+<meta name="description" content="Sagittaire — tir à l'arc : cible, volées, statistiques, matériel et compétitions en direct.">
+<meta name="theme-color" content="#0B1220">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Sagittaire">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" href="icon.svg" type="image/svg+xml">
+<link rel="apple-touch-icon" href="icon-180.png">
+<script>var t="dark";try{var s=localStorage.getItem("sg_theme");if(s==="light")t=s;}catch(e){}document.documentElement.setAttribute("data-theme",t);</script>
+<script defer src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
+<script defer src="https://www.gstatic.com/firebasejs/9.23.0/firebase-database-compat.js"></script>
+<style>
+:root{
+  --bg:#F3F5F8;--surface:#FFFFFF;--surface2:#EEF2F7;--ink:#0E1726;--muted:#5D6B7E;--line:#D8DFE8;
+  --accent:#D9A21B;--accent-ink:#1A1300;--blue:#2F6FD6;--good:#24965A;--bad:#D0473F;--chip:#E6ECF3;
+  --shadow:0 6px 24px rgba(10,20,40,.08);
+}
+:root[data-theme="dark"]{
+  --bg:#0B1220;--surface:#131C2E;--surface2:#1A2539;--ink:#E8EEF6;--muted:#93A1B5;--line:#26324A;
+  --accent:#F2B935;--accent-ink:#1A1300;--blue:#6EA1FF;--good:#3CC27A;--bad:#FF6B61;--chip:#22304A;
+  --shadow:0 6px 24px rgba(0,0,0,.35);
+}
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+html,body{margin:0;background:var(--bg);color:var(--ink);font:16px/1.4 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif}
+body{min-height:100vh;padding-bottom:env(safe-area-inset-bottom)}
+button,input,select,textarea{font:inherit;color:inherit}
+button{cursor:pointer}
+[hidden]{display:none !important}
+a{color:var(--blue)}
+.wrap{max-width:760px;margin:0 auto;padding:max(.6rem,env(safe-area-inset-top)) .9rem 5.5rem}
+/* barre du haut */
+.top{display:flex;align-items:center;gap:.5rem;margin:.2rem 0 .8rem}
+.brand{display:flex;align-items:center;gap:.45rem;font-weight:800;font-size:1.2rem;letter-spacing:.01em;text-decoration:none;color:var(--ink)}
+.brand svg{width:1.8rem;height:1.8rem}
+.top .sp{flex:1}
+.who{display:flex;align-items:center;gap:.4rem;background:var(--surface);border:1px solid var(--line);border-radius:999px;padding:.25rem .3rem .25rem .7rem;font-size:.85rem;font-weight:600;max-width:55vw}
+.who span{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.icon-btn{width:2.3rem;height:2.3rem;border-radius:50%;border:1px solid var(--line);background:var(--surface);display:inline-grid;place-items:center;font-size:1rem;flex:0 0 auto}
+.dot{width:.55rem;height:.55rem;border-radius:50%;background:var(--muted);flex:0 0 auto}
+.dot.on{background:var(--good)}
+/* boutons */
+.btn{border:1px solid var(--line);background:var(--surface);border-radius:12px;padding:.6rem .9rem;min-height:2.7rem;font-weight:650;display:inline-flex;align-items:center;justify-content:center;gap:.4rem}
+.btn.pri{background:var(--accent);border-color:var(--accent);color:var(--accent-ink)}
+.btn.ghost{background:transparent}
+.btn.danger{color:var(--bad);border-color:color-mix(in srgb,var(--bad) 45%,var(--line))}
+.btn.sm{min-height:2.1rem;padding:.3rem .65rem;font-size:.85rem;border-radius:10px}
+.btn.full{width:100%}
+.btn:disabled{opacity:.45}
+.row{display:flex;gap:.5rem;align-items:center;flex-wrap:wrap}
+.row>.grow{flex:1 1 0;min-width:0}
+.grid2{display:grid;grid-template-columns:1fr 1fr;gap:.5rem}
+/* cartes */
+.card{background:var(--surface);border:1px solid var(--line);border-radius:16px;padding:.9rem;margin-bottom:.8rem;box-shadow:var(--shadow)}
+.card h2{margin:0 0 .6rem;font-size:1.05rem}
+.card h3{margin:.8rem 0 .4rem;font-size:.95rem}
+.muted{color:var(--muted)}
+.small{font-size:.82rem}
+.hero{display:grid;grid-template-columns:repeat(3,1fr);gap:.5rem;margin-bottom:.8rem}
+.kpi{background:var(--surface);border:1px solid var(--line);border-radius:14px;padding:.6rem .7rem}
+.kpi b{display:block;font-size:1.35rem;font-variant-numeric:tabular-nums}
+.kpi span{font-size:.72rem;color:var(--muted);text-transform:uppercase;letter-spacing:.04em}
+.list{list-style:none;margin:0;padding:0}
+.item{display:flex;align-items:center;gap:.6rem;padding:.65rem .2rem;border-top:1px solid var(--line)}
+.item:first-child{border-top:0}
+.item .main{flex:1;min-width:0}
+.item .main b{display:block;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.item .main small{color:var(--muted)}
+.item .score{font-weight:800;font-size:1.15rem;font-variant-numeric:tabular-nums;text-align:right}
+.item .score small{display:block;font-size:.7rem;color:var(--muted);font-weight:600}
+.item.click{cursor:pointer}
+.tag{display:inline-block;padding:.05rem .45rem;border-radius:6px;background:var(--chip);font-size:.72rem;font-weight:700;color:var(--muted)}
+.tag.live{background:#FF5A4E;color:#fff}
+.tag.gold{background:var(--accent);color:var(--accent-ink)}
+.empty{color:var(--muted);text-align:center;padding:1rem .5rem}
+label.f{display:block;font-size:.82rem;font-weight:650;margin:.7rem 0 .3rem;color:var(--muted)}
+input.in,select.in,textarea.in{width:100%;padding:.6rem .7rem;border-radius:10px;border:1px solid var(--line);background:var(--surface2);min-height:2.7rem}
+input[type=date].in,input[type=time].in{color-scheme:dark}
+:root[data-theme="light"] input[type=date].in{color-scheme:light}
+.seg{display:flex;background:var(--surface2);border:1px solid var(--line);border-radius:12px;padding:3px;gap:3px}
+.seg button{flex:1;border:0;background:transparent;border-radius:9px;padding:.45rem .3rem;font-weight:650;font-size:.85rem;color:var(--muted)}
+.seg button.on{background:var(--surface);color:var(--ink);box-shadow:0 1px 4px rgba(0,0,0,.15)}
+/* navigation du bas */
+.nav{position:fixed;left:0;right:0;bottom:0;background:color-mix(in srgb,var(--surface) 92%,transparent);backdrop-filter:blur(10px);border-top:1px solid var(--line);display:flex;justify-content:center;padding:.3rem .3rem calc(.3rem + env(safe-area-inset-bottom));z-index:20}
+.nav a{flex:1;max-width:150px;text-align:center;text-decoration:none;color:var(--muted);font-size:.7rem;font-weight:650;padding:.25rem 0;border-radius:10px}
+.nav a i{display:block;font-style:normal;font-size:1.25rem;line-height:1.3}
+.nav a.on{color:var(--accent)}
+/* ===== Pointage ===== */
+.shoot{display:flex;flex-direction:column;gap:.6rem}
+.shoot-head{display:flex;align-items:center;gap:.5rem}
+.shoot-head .ttl{flex:1;min-width:0}
+.shoot-head .ttl b{display:block;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.shoot-head .ttl small{color:var(--muted)}
+.tot{font-size:1.6rem;font-weight:850;font-variant-numeric:tabular-nums;text-align:right;line-height:1}
+.tot small{display:block;font-size:.7rem;color:var(--muted);font-weight:650;margin-top:.15rem}
+.target-box{position:relative;background:radial-gradient(circle at 50% 40%,#2A3753 0%,#141C2C 70%);border-radius:18px;border:1px solid var(--line);overflow:hidden;touch-action:none;user-select:none;-webkit-user-select:none}
+:root[data-theme="light"] .target-box{background:radial-gradient(circle at 50% 40%,#E8EDF4 0%,#CBD4E0 75%)}
+.target-box svg.tgt{display:block;width:100%;height:auto;aspect-ratio:1/1;max-height:62vh;margin:0 auto}
+.loupe{position:absolute;width:132px;height:132px;border-radius:50%;border:3px solid #fff;box-shadow:0 8px 24px rgba(0,0,0,.5);overflow:hidden;pointer-events:none;background:#0B1220;display:none;z-index:4}
+.loupe svg{width:100%;height:100%}
+.loupe .lbl{position:absolute;bottom:6px;left:0;right:0;text-align:center;font-weight:900;font-size:1rem;color:#fff;text-shadow:0 1px 3px #000}
+.zoom-tools{position:absolute;right:.5rem;top:.5rem;display:flex;flex-direction:column;gap:.35rem;z-index:3}
+.zoom-tools button{width:2.3rem;height:2.3rem;border-radius:50%;border:1px solid rgba(255,255,255,.25);background:rgba(10,15,25,.6);color:#fff;font-weight:800}
+.end-strip{display:flex;gap:.35rem;align-items:center;min-height:2.6rem;flex-wrap:wrap}
+.pill{min-width:2.3rem;height:2.3rem;border-radius:50%;display:inline-grid;place-items:center;font-weight:850;font-size:.95rem;border:2px solid rgba(0,0,0,.15);font-variant-numeric:tabular-nums;position:relative}
+.pill.slot{background:transparent;border:2px dashed var(--line);color:var(--muted)}
+.pill sup{position:absolute;top:-.35rem;right:-.35rem;background:var(--surface);color:var(--ink);border:1px solid var(--line);border-radius:6px;font-size:.6rem;padding:0 .2rem;font-weight:700}
+.pill.sel{outline:3px solid var(--blue);outline-offset:2px}
+.keypad{display:grid;grid-template-columns:repeat(6,1fr);gap:.35rem}
+.keypad button{border:0;border-radius:10px;min-height:2.6rem;font-weight:850;font-size:1rem}
+.numbers{display:flex;gap:.3rem;flex-wrap:wrap}
+.numbers button{min-width:2.1rem;height:2.1rem;border-radius:8px;border:1px solid var(--line);background:var(--surface2);font-weight:700;font-size:.85rem}
+.numbers button.used{opacity:.35}
+.ends{width:100%;border-collapse:collapse;font-variant-numeric:tabular-nums;font-size:.9rem}
+.ends th{font-size:.68rem;color:var(--muted);text-align:center;padding:.3rem .2rem;font-weight:700}
+.ends td{text-align:center;padding:.38rem .15rem;border-top:1px solid var(--line)}
+.ends td.a{width:1.9rem}
+.ends .mini{display:inline-grid;place-items:center;width:1.6rem;height:1.6rem;border-radius:50%;font-weight:800;font-size:.78rem}
+.ends tr.click{cursor:pointer}
+.ends tr.cur td{background:color-mix(in srgb,var(--accent) 12%,transparent)}
+.ends td.et{font-weight:800}
+.ends td.rt{color:var(--muted)}
+.dist-h td{background:var(--surface2);font-weight:700;text-align:left !important;font-size:.8rem;color:var(--muted)}
+/* stats */
+.bars{display:flex;align-items:flex-end;gap:4px;height:120px;padding-top:.4rem}
+.bars div{flex:1;border-radius:6px 6px 0 0;position:relative;min-height:2px}
+.bars div span{position:absolute;bottom:-1.25rem;left:0;right:0;text-align:center;font-size:.68rem;color:var(--muted);font-weight:700}
+.bars div em{position:absolute;top:-1.1rem;left:0;right:0;text-align:center;font-size:.62rem;color:var(--muted);font-style:normal}
+.chart svg{width:100%;height:auto;display:block}
+.advice{border-left:4px solid var(--accent);background:var(--surface2);padding:.6rem .7rem;border-radius:0 10px 10px 0;font-size:.9rem;margin:.5rem 0}
+.mini-tgt{width:100%;max-width:340px;margin:0 auto;display:block}
+/* classement */
+.lb{width:100%;border-collapse:collapse;font-variant-numeric:tabular-nums}
+.lb th{font-size:.68rem;color:var(--muted);padding:.35rem .25rem;text-align:center}
+.lb td{padding:.5rem .25rem;border-top:1px solid var(--line);text-align:center}
+.lb td:nth-child(2),.lb th:nth-child(2){text-align:left}
+.lb td.rk{font-weight:800;color:var(--muted);width:1.8rem}
+.lb tr.me td{background:color-mix(in srgb,var(--accent) 14%,transparent)}
+.lb td.tt{font-weight:850;font-size:1.05rem}
+.lb .medal{font-size:1rem}
+/* dialogue */
+dialog{border:0;border-radius:18px;padding:0;background:var(--surface);color:var(--ink);width:min(94vw,460px);max-height:88vh;box-shadow:0 20px 60px rgba(0,0,0,.5)}
+dialog::backdrop{background:rgba(5,10,20,.6)}
+.dlg{padding:1rem 1rem .9rem;overflow:auto;max-height:88vh}
+.dlg h2{margin:0 0 .4rem;font-size:1.15rem}
+.dlg .acts{display:flex;gap:.5rem;margin-top:1rem}
+.dlg .acts .btn{flex:1}
+.toast{position:fixed;left:50%;bottom:5.2rem;transform:translateX(-50%);background:#111A2B;color:#fff;padding:.6rem 1rem;border-radius:12px;font-weight:600;font-size:.9rem;z-index:60;box-shadow:0 8px 24px rgba(0,0,0,.4);max-width:90vw;text-align:center}
+.pin{display:flex;gap:.5rem;justify-content:center;margin:.6rem 0}
+.pin input{width:3rem;height:3.4rem;text-align:center;font-size:1.5rem;font-weight:800;border-radius:12px;border:1px solid var(--line);background:var(--surface2)}
+.face-pick{display:grid;grid-template-columns:repeat(3,1fr);gap:.4rem}
+.face-pick button{border:2px solid var(--line);background:var(--surface2);border-radius:12px;padding:.35rem;font-size:.72rem;font-weight:650}
+.face-pick button.on{border-color:var(--accent)}
+.face-pick svg{width:100%;height:auto;display:block;margin-bottom:.2rem}
+.round-pick{display:grid;gap:.4rem}
+.round-pick button{text-align:left;border:2px solid var(--line);background:var(--surface2);border-radius:12px;padding:.55rem .7rem}
+.round-pick button.on{border-color:var(--accent)}
+.round-pick button b{display:block}
+.round-pick button small{color:var(--muted)}
+.sight-tbl{width:100%;border-collapse:collapse}
+.sight-tbl td{padding:.35rem .2rem;border-top:1px solid var(--line)}
+.sight-tbl input{width:5rem}
+.chips{display:flex;flex-wrap:wrap;gap:.35rem}
+.chip{padding:.3rem .65rem;border-radius:999px;background:var(--chip);font-size:.8rem;font-weight:650;border:1px solid transparent}
+.chip.on{border-color:var(--accent);color:var(--accent)}
+@media (min-width:700px){.hero{grid-template-columns:repeat(4,1fr)}}
+@media print{.nav,.top .icon-btn,.no-print{display:none !important}.wrap{padding-bottom:0}}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header class="top">
+    <a class="brand" href="#/"><svg viewBox="0 0 64 64" aria-hidden="true"><circle cx="32" cy="32" r="30" fill="#fff"/><circle cx="32" cy="32" r="24" fill="#111"/><circle cx="32" cy="32" r="18" fill="#2E7BE6"/><circle cx="32" cy="32" r="12" fill="#E5363B"/><circle cx="32" cy="32" r="6" fill="#F7C51E"/><path d="M60 4 34 30" stroke="#E8EEF6" stroke-width="3" stroke-linecap="round"/><path d="M52 4h8v8" fill="none" stroke="#E8EEF6" stroke-width="3" stroke-linecap="round"/></svg>Sagittaire</a>
+    <span class="sp"></span>
+    <span class="dot" id="netDot" title="Connexion"></span>
+    <button class="who" id="whoBtn" type="button"><span id="whoName">Se connecter</span><span class="icon-btn" style="width:1.7rem;height:1.7rem;font-size:.85rem">👤</span></button>
+    <button class="icon-btn" id="themeBtn" type="button" aria-label="Mode clair / sombre">☀️</button>
+  </header>
+  <main id="view"></main>
+</div>
+<nav class="nav" id="nav">
+  <a href="#/" data-nav="home"><i>🏠</i>Accueil</a>
+  <a href="#/new" data-nav="new"><i>🎯</i>Tirer</a>
+  <a href="#/stats" data-nav="stats"><i>📈</i>Statistiques</a>
+  <a href="#/comps" data-nav="comps"><i>🏆</i>Compétitions</a>
+  <a href="#/gear" data-nav="gear"><i>🏹</i>Matériel</a>
+</nav>
+<dialog id="dlg"><div class="dlg" id="dlgBody"></div></dialog>
+<script>
+(function(){
+"use strict";
+var BUILD = "202611060756";
+/* ================= Utilitaires ================= */
+const $ = id => document.getElementById(id);
+const esc = s => String(s == null ? "" : s).replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+const obj = v => (v && typeof v === "object") ? v : {};
+const arr = v => Array.isArray(v) ? v : (v && typeof v === "object" ? Object.keys(v).sort((a, b) => Number(a) - Number(b)).map(k => v[k]) : []);
+const uid = () => Date.now().toString(36) + Math.random().toString(36).slice(2, 7);
+const pad2 = n => (n < 10 ? "0" : "") + n;
+const today = () => { const d = new Date(); return d.getFullYear() + "-" + pad2(d.getMonth() + 1) + "-" + pad2(d.getDate()); };
+const fmtDate = ds => { if(!ds) return ""; const p = String(ds).split("-").map(Number); return new Date(p[0], p[1] - 1, p[2]).toLocaleDateString("fr-CA", { weekday: "short", day: "numeric", month: "long", year: "numeric" }); };
+const fmtShort = ds => { if(!ds) return ""; const p = String(ds).split("-").map(Number); return new Date(p[0], p[1] - 1, p[2]).toLocaleDateString("fr-CA", { day: "numeric", month: "short" }); };
+const dec = (n, d) => (isFinite(n) ? Number(n).toFixed(d == null ? 2 : d) : "—").replace(".", ",");
+const LS = { get(k, d){ try{ const v = localStorage.getItem(k); return v == null ? d : JSON.parse(v); }catch(e){ return d; } }, set(k, v){ try{ localStorage.setItem(k, JSON.stringify(v)); }catch(e){} } };
+function toast(msg, ms){ const t = document.createElement("div"); t.className = "toast"; t.textContent = msg; document.body.appendChild(t); setTimeout(() => t.remove(), ms || 2200); }
+function h(html){ const t = document.createElement("template"); t.innerHTML = html.trim(); return t.content.firstElementChild; }
+
+/* ================= Firebase ================= */
+const ROOT = "sagittaire";
+let DB = null, online = false;
+function initDB(){
+  if(window.__DB) { DB = window.__DB; return; }
+  if(!window.firebase){ return; }
+  firebase.initializeApp({
+    apiKey: "AIzaSyD2aqnGK8aN2GM0Gh9HRTAbiVd_et84f6o",
+    authDomain: "ohmtro-26e56.firebaseapp.com",
+    databaseURL: "https://ohmtro-26e56-default-rtdb.firebaseio.com",
+    projectId: "ohmtro-26e56",
+    messagingSenderId: "906447628739",
+    appId: "1:906447628739:web:efe6e0344fed3b3628f576"
+  });
+  DB = firebase.database();
+}
+const ref = p => DB.ref(ROOT + "/" + p);
+let subs = [];
+function sub(path, cb){ const r = ref(path); r.on("value", s => cb(s.val())); subs.push(r); return r; }
+function unsubAll(){ subs.forEach(r => r.off("value")); subs = []; }
+const put = (p, v) => ref(p).set(v === undefined ? null : v);
+const once = p => ref(p).once("value").then(s => s.val());
+
+/* ================= Cibles (blasons) =================
+   Coordonnées : x, y normalisés au rayon du blason (ou du spot) = 1. Le score tient compte du diamètre de la flèche (la flèche qui touche la ligne prend la valeur supérieure). */
+const WA_COL = { 1: "#FFFFFF", 2: "#FFFFFF", 3: "#1B1B1B", 4: "#1B1B1B", 5: "#2A8DE0", 6: "#2A8DE0", 7: "#E5363B", 8: "#E5363B", 9: "#F7C51E", 10: "#F7C51E" };
+const LINE = { 1: "#222", 2: "#222", 3: "#777", 4: "#777", 5: "#111", 6: "#111", 7: "#111", 8: "#111", 9: "#111", 10: "#111" };
+function waRings(min){ const n = 11 - min, out = []; for(let s = min; s <= 10; s++) out.push({ s: s, r: (11 - s) / n, fill: WA_COL[s], line: LINE[s] }); return out; }
+const FACES = {
+  wa10:   { name: "WA 10 zones", sizes: [122, 80, 60, 40], def: 122, spots: 1, rings: waRings(1), x: 0.05, rcm: d => d / 2 },
+  wa6:    { name: "WA 80 cm réduit (5-10)", sizes: [80], def: 80, spots: 1, rings: waRings(5), x: 1 / 12, rcm: d => d / 2 * 0.6 },
+  tri:    { name: "Trispot 40 cm (6-10)", sizes: [40], def: 40, spots: 3, layout: "v", rings: waRings(6), x: 0.1, rcm: d => d / 4 },
+  vegas:  { name: "Vegas 3 spots (triangle)", sizes: [40], def: 40, spots: 3, layout: "t", rings: waRings(6), x: 0.1, rcm: d => d / 4 },
+  field:  { name: "Campagne (1-6)", sizes: [80, 60, 40, 20], def: 60, spots: 1, x: 1 / 12,
+            rings: [1, 2, 3, 4, 5, 6].map(s => ({ s: s, r: s <= 4 ? 1 - (s - 1) / 6 : (s === 5 ? 1 / 3 : 1 / 6), fill: s >= 5 ? "#F7C51E" : "#1B1B1B", line: s >= 5 ? "#111" : "#EEE" })), rcm: d => d / 2 },
+  bead:   { name: "3D / Animal (vitales)", sizes: [40], def: 40, spots: 1, x: 0.1,
+            rings: [{ s: 5, r: 1, fill: "#7A6A4E", line: "#3E3424" }, { s: 8, r: 0.55, fill: "#9B8762", line: "#2B241A" }, { s: 10, r: 0.3, fill: "#B9A57E", line: "#1E1912" }, { s: 11, r: 0.12, fill: "#D8C79F", line: "#1E1912" }], rcm: d => d / 2 }
+};
+// Field : anneaux 1 à 4 de largeur égale, puis 5 et 6 (centre doré)
+FACES.field.rings = [{ s: 1, r: 1 }, { s: 2, r: 5 / 6 }, { s: 3, r: 4 / 6 }, { s: 4, r: 3 / 6 }, { s: 5, r: 2 / 6 }, { s: 6, r: 1 / 6 }].map(o => Object.assign(o, { fill: o.s >= 5 ? "#F7C51E" : "#1B1B1B", line: o.s >= 5 ? "#222" : "#DDD" }));
+const ARROW_CM = 0.3;  // rayon d'une flèche (≈ 6 mm de diamètre)
+function spotCenters(face){ // centres des spots, dans la vue -1..1 du blason
+  const F = FACES[face]; if(F.spots === 1) return [{ x: 0, y: 0, k: 1 }];
+  if(F.layout === "t") return [{ x: -0.5, y: -0.44, k: 0.46 }, { x: 0.5, y: -0.44, k: 0.46 }, { x: 0, y: 0.46, k: 0.46 }];
+  return [{ x: 0, y: -0.64, k: 0.31 }, { x: 0, y: 0, k: 0.31 }, { x: 0, y: 0.64, k: 0.31 }];
+}
+function scoreAt(face, size, x, y){  // x,y dans le repère du spot (rayon 1)
+  const F = FACES[face], d = Math.sqrt(x * x + y * y) - ARROW_CM / F.rcm(size || F.def);
+  let s = 0, isX = false;
+  for(const r of F.rings) if(d <= r.r) s = r.s;
+  if(face !== "bead" && s >= 10 && d <= F.x) isX = true;
+  return { s: s, x: isX };
+}
+const maxScore = face => face === "bead" ? 11 : (face === "field" ? 6 : 10);
+function arrowVal(a){ return a && a.s ? Number(a.s) : 0; }
+function arrowLabel(a){ if(!a) return ""; if(!a.s) return "M"; if(a.X && a.s >= 10) return "X"; return String(a.s); }
+function pillStyle(face, a){
+  const F = FACES[face], s = a ? a.s : 0;
+  if(!s) return "background:#3A4559;color:#fff";
+  const r = F.rings.find(o => o.s === s) || F.rings[F.rings.length - 1];
+  const dark = ["#1B1B1B", "#2A8DE0", "#E5363B", "#7A6A4E"].indexOf(r.fill) >= 0;
+  return "background:" + r.fill + ";color:" + (dark ? "#fff" : "#111");
+}
+/* dessin SVG d'un blason ; vue -1.1..1.1 */
+function faceSVG(face, opts){
+  opts = opts || {};
+  const F = FACES[face], sp = spotCenters(face);
+  let g = "";
+  if(F.spots > 1 || face === "bead") g += '<rect x="-1.05" y="-1.05" width="2.1" height="2.1" rx=".06" fill="' + (face === "bead" ? "#4B5B3A" : "#F4F1E8") + '"/>';
+  sp.forEach((c, i) => {
+    g += '<g transform="translate(' + c.x + ' ' + c.y + ') scale(' + c.k + ')">';
+    F.rings.forEach(r => { g += '<circle r="' + r.r + '" fill="' + r.fill + '" stroke="' + r.line + '" stroke-width="' + (0.006 / c.k) + '"/>'; });
+    g += '<circle r="' + F.x + '" fill="none" stroke="' + (face === "bead" ? "#222" : "#333") + '" stroke-width="' + (0.004 / c.k) + '"/>';
+    g += '<path d="M-.03 0H.03M0 -.03V.03" stroke="#333" stroke-width="' + (0.004 / c.k) + '"/>';
+    g += "</g>";
+  });
+  return g;
+}
+/* position d'une flèche (spot i, x,y) -> vue */
+function toView(face, a){ const c = spotCenters(face)[a.p || 0] || { x: 0, y: 0, k: 1 }; return { x: c.x + a.x * c.k, y: c.y + a.y * c.k }; }
+function fromView(face, vx, vy){ // trouve le spot le plus proche
+  const sp = spotCenters(face); let best = 0, bd = 1e9;
+  sp.forEach((c, i) => { const d = Math.hypot(vx - c.x, vy - c.y); if(d < bd){ bd = d; best = i; } });
+  const c = sp[best]; return { p: best, x: (vx - c.x) / c.k, y: (vy - c.y) / c.k };
+}
+
+/* ================= Rondes ================= */
+const ROUNDS = [
+  { id: "free",   name: "Entraînement libre", desc: "Distance, blason et nombre de flèches au choix, volées illimitées", free: true, parts: [{ d: 18, face: "wa10", size: 40, ape: 3, ends: 0 }] },
+  { id: "wa18",   name: "WA 18 m (salle)",   desc: "60 flèches · 2 × 10 volées de 3 · trispot 40 cm", parts: [{ d: 18, face: "tri", size: 40, ape: 3, ends: 10 }, { d: 18, face: "tri", size: 40, ape: 3, ends: 10 }] },
+  { id: "wa18s",  name: "WA 18 m (blason simple)", desc: "60 flèches · 40 cm 10 zones", parts: [{ d: 18, face: "wa10", size: 40, ape: 3, ends: 10 }, { d: 18, face: "wa10", size: 40, ape: 3, ends: 10 }] },
+  { id: "vegas",  name: "Vegas 300",          desc: "30 flèches · 10 volées de 3 · 3 spots", parts: [{ d: 18, face: "vegas", size: 40, ape: 3, ends: 10 }] },
+  { id: "wa25",   name: "WA 25 m",            desc: "60 flèches · 60 cm", parts: [{ d: 25, face: "wa10", size: 60, ape: 3, ends: 10 }, { d: 25, face: "wa10", size: 60, ape: 3, ends: 10 }] },
+  { id: "wa70",   name: "WA 70 m (classique)",desc: "72 flèches · 12 volées de 6 · 122 cm", parts: [{ d: 70, face: "wa10", size: 122, ape: 6, ends: 6 }, { d: 70, face: "wa10", size: 122, ape: 6, ends: 6 }] },
+  { id: "wa60",   name: "WA 60 m (U18/U15)",  desc: "72 flèches · 122 cm", parts: [{ d: 60, face: "wa10", size: 122, ape: 6, ends: 6 }, { d: 60, face: "wa10", size: 122, ape: 6, ends: 6 }] },
+  { id: "wa50c",  name: "WA 50 m (poulies)",  desc: "72 flèches · 80 cm réduit 5-10", parts: [{ d: 50, face: "wa6", size: 80, ape: 6, ends: 6 }, { d: 50, face: "wa6", size: 80, ape: 6, ends: 6 }] },
+  { id: "wa50b",  name: "WA 50 m (arc nu)",   desc: "72 flèches · 122 cm", parts: [{ d: 50, face: "wa10", size: 122, ape: 6, ends: 6 }, { d: 50, face: "wa10", size: 122, ape: 6, ends: 6 }] },
+  { id: "wa1440", name: "WA 1440 (90-70-50-30)", desc: "144 flèches · 4 distances", parts: [{ d: 90, face: "wa10", size: 122, ape: 6, ends: 6 }, { d: 70, face: "wa10", size: 122, ape: 6, ends: 6 }, { d: 50, face: "wa10", size: 80, ape: 6, ends: 12 }, { d: 30, face: "wa10", size: 80, ape: 6, ends: 12 }] },
+  { id: "field",  name: "Parcours campagne",  desc: "24 cibles · 3 flèches · blason 1-6", parts: [{ d: 0, face: "field", size: 60, ape: 3, ends: 24 }] },
+  { id: "3d",     name: "Parcours 3D",        desc: "24 cibles · 1 flèche · zones 5-8-10-11", parts: [{ d: 0, face: "bead", size: 40, ape: 1, ends: 24 }] }
+];
+const roundById = id => ROUNDS.find(r => r.id === id) || ROUNDS[0];
+const BOW_TYPES = { R: "Classique (recurve)", C: "Poulies (compound)", B: "Arc nu (barebow)", L: "Arc droit / traditionnel", J: "Initiation" };
+
+/* ================= Session / identité ================= */
+let me = LS.get("sg_me", null);      // { id, name }
+let archers = {}, archersLoaded = false;
+function setMe(a){ me = a; LS.set("sg_me", a); renderWho(); }
+function renderWho(){ $("whoName").textContent = me ? me.name : "Se connecter"; }
+const isMe = aid => !!me && me.id === aid;
+
+/* ================= Boîte de dialogue ================= */
+function dialog(html, bind){
+  const d = $("dlg"); $("dlgBody").innerHTML = html; if(!d.open) d.showModal();
+  d.querySelectorAll("[data-close]").forEach(b => b.onclick = () => d.close());
+  if(bind) bind($("dlgBody"));
+  return d;
+}
+function confirmBox(msg, okLabel){
+  return new Promise(res => dialog('<h2>Confirmer</h2><p>' + esc(msg) + '</p><div class="acts"><button class="btn" data-close>Annuler</button><button class="btn pri" id="cfOk">' + esc(okLabel || "OK") + '</button></div>',
+    b => { b.querySelector("#cfOk").onclick = () => { $("dlg").close(); res(true); }; $("dlg").addEventListener("close", () => res(false), { once: true }); }));
+}
+
+/* ----- Connexion d'un archer (nom + NIP à 4 chiffres) ----- */
+function loginDialog(){
+  const list = Object.keys(archers).map(k => Object.assign({ id: k }, archers[k])).filter(a => a.name).sort((a, b) => a.name.localeCompare(b.name, "fr"));
+  dialog('<h2>' + (me ? "Changer d'archer" : "Se connecter") + '</h2>' +
+    '<p class="muted small">Chaque archer a un NIP de 4 chiffres pour protéger ses tirs. Un entraîneur peut consulter les résultats sans se connecter.</p>' +
+    '<div class="seg" id="lgSeg"><button class="on" data-m="in">J\'ai un profil</button><button data-m="new">Nouveau profil</button></div>' +
+    '<div id="lgIn"><label class="f">Archer</label><select class="in" id="lgWho"><option value="">' + (list.length ? "Choisir…" : "Aucun profil encore") + '</option>' + list.map(a => '<option value="' + a.id + '">' + esc(a.name) + (a.club ? " — " + esc(a.club) : "") + '</option>').join("") + '</select></div>' +
+    '<div id="lgNew" hidden><label class="f">Nom complet</label><input class="in" id="lgName" maxlength="40" autocomplete="name"><label class="f">Club (facultatif)</label><input class="in" id="lgClub" maxlength="40"><label class="f">Type d\'arc principal</label><select class="in" id="lgBow">' + Object.keys(BOW_TYPES).map(k => '<option value="' + k + '">' + BOW_TYPES[k] + '</option>').join("") + '</select></div>' +
+    '<label class="f">NIP (4 chiffres)</label><input class="in" id="lgPin" inputmode="numeric" maxlength="4" pattern="[0-9]*" autocomplete="off" style="font-size:1.4rem;letter-spacing:.5em;text-align:center">' +
+    '<div class="acts">' + (me ? '<button class="btn danger" id="lgOut">Déconnexion</button>' : '<button class="btn" data-close>Annuler</button>') + '<button class="btn pri" id="lgGo">Continuer</button></div>',
+  b => {
+    let mode = "in";
+    b.querySelectorAll("#lgSeg button").forEach(x => x.onclick = () => { mode = x.dataset.m; b.querySelectorAll("#lgSeg button").forEach(y => y.classList.toggle("on", y === x)); b.querySelector("#lgIn").hidden = mode !== "in"; b.querySelector("#lgNew").hidden = mode !== "new"; });
+    if(!list.length) b.querySelector("#lgSeg [data-m=new]").click();
+    const out = b.querySelector("#lgOut"); if(out) out.onclick = () => { setMe(null); $("dlg").close(); route(); };
+    b.querySelector("#lgGo").onclick = () => {
+      const pin = b.querySelector("#lgPin").value.trim();
+      if(!/^\d{4}$/.test(pin)){ toast("Le NIP doit avoir 4 chiffres."); return; }
+      if(mode === "in"){
+        const id = b.querySelector("#lgWho").value, a = archers[id]; if(!a){ toast("Choisissez votre nom."); return; }
+        if(String(a.pin) !== pin){ toast("NIP incorrect."); return; }
+        setMe({ id: id, name: a.name }); $("dlg").close(); toast("Bonjour " + a.name.split(" ")[0] + " !"); route();
+      } else {
+        const name = b.querySelector("#lgName").value.trim().replace(/\s+/g, " "); if(name.length < 2){ toast("Inscrivez votre nom."); return; }
+        if(list.some(a => a.name.toLowerCase() === name.toLowerCase())){ toast("Ce nom existe déjà : choisissez « J'ai un profil »."); return; }
+        const id = uid();
+        put("archers/" + id, { name: name, club: b.querySelector("#lgClub").value.trim(), bow: b.querySelector("#lgBow").value, pin: pin, created: Date.now() });
+        setMe({ id: id, name: name }); $("dlg").close(); toast("Profil créé. Bienvenue !"); location.hash = "#/gear";
+      }
+    };
+  });
+}
+function needMe(){ if(me) return true; loginDialog(); return false; }
+
+/* ================= Routage ================= */
+let viewCleanup = null;
+function route(){
+  if(viewCleanup){ try{ viewCleanup(); }catch(e){} viewCleanup = null; }
+  unsubAll(); keepArchers();
+  const hsh = location.hash.replace(/^#\/?/, ""), p = hsh.split("/");
+  const navKey = { "": "home", new: "new", s: "new", stats: "stats", comps: "comps", c: "comps", gear: "gear", a: "home" }[p[0]] || "home";
+  document.querySelectorAll("#nav a").forEach(a => a.classList.toggle("on", a.dataset.nav === navKey));
+  const v = $("view"); v.innerHTML = ""; window.scrollTo(0, 0);
+  if(!DB){ v.appendChild(h('<div class="card"><h2>Hors ligne</h2><p class="muted">Impossible de joindre la base de données. Vérifiez la connexion Internet puis rechargez la page.</p></div>')); return; }
+  if(p[0] === "new") return viewNew(v);
+  if(p[0] === "s") return viewShoot(v, p[1], p[2]);
+  if(p[0] === "stats") return viewStats(v, p[1] || (me && me.id));
+  if(p[0] === "comps") return viewComps(v);
+  if(p[0] === "c") return viewComp(v, p[1]);
+  if(p[0] === "gear") return viewGear(v);
+  if(p[0] === "a") return viewArcher(v, p[1]);
+  return viewHome(v);
+}
+function keepArchers(){ sub("archers", v => { archers = obj(v); archersLoaded = true; if(me && archers[me.id] && archers[me.id].name !== me.name) setMe({ id: me.id, name: archers[me.id].name }); }); }
+
+/* ================= Calculs ================= */
+function sessionArrows(s){ const out = []; arr(s && s.ends).forEach((e, i) => arr(e && e.a).forEach(a => { if(a) out.push(Object.assign({ end: i, part: e.part || 0 }, a)); })); return out; }
+function sessionSummary(s){
+  const ends = arr(s && s.ends).filter(e => e && arr(e.a).length), A = sessionArrows(s);
+  const tot = A.reduce((t, a) => t + arrowVal(a), 0), n = A.length;
+  const xs = A.filter(a => a.X && a.s >= 10).length, tens = A.filter(a => a.s >= 10).length, miss = A.filter(a => !a.s).length;
+  const planned = s && s.parts ? arr(s.parts).reduce((t, p) => t + (p.ends || 0) * (p.ape || 0), 0) : 0;
+  const maxA = s && s.parts ? arr(s.parts).reduce((t, p) => t + (p.ends || 0) * (p.ape || 0) * maxScore(p.face), 0) : 0;
+  return { tot: tot, n: n, x: xs, t10: tens, miss: miss, ends: ends.length, avg: n ? tot / n : 0, planned: planned, max: maxA };
+}
+// Groupement : centre et dispersion (en cm sur le blason), à partir des positions dans le spot
+function grouping(A, face, size){
+  const P = A.filter(a => a.x != null && a.y != null && !a.k); if(P.length < 2) return null;
+  const F = FACES[face] || FACES.wa10, R = F.rcm(size || F.def);
+  const mx = P.reduce((t, a) => t + a.x, 0) / P.length, my = P.reduce((t, a) => t + a.y, 0) / P.length;
+  const sx = Math.sqrt(P.reduce((t, a) => t + (a.x - mx) ** 2, 0) / P.length), sy = Math.sqrt(P.reduce((t, a) => t + (a.y - my) ** 2, 0) / P.length);
+  const rad = P.reduce((t, a) => t + Math.hypot(a.x - mx, a.y - my), 0) / P.length;
+  return { mx: mx, my: my, sx: sx, sy: sy, rad: rad, cmx: mx * R, cmy: my * R, cmRad: rad * R, n: P.length, R: R };
+}
+function sightAdvice(g){
+  if(!g || g.n < 6) return "";
+  const dx = g.cmx, dy = -g.cmy, lim = Math.max(1.5, g.cmRad * 0.35), parts = [];
+  if(Math.abs(dx) > lim) parts.push(dec(Math.abs(dx), 1) + " cm " + (dx > 0 ? "à droite" : "à gauche"));
+  if(Math.abs(dy) > lim) parts.push(dec(Math.abs(dy), 1) + " cm " + (dy > 0 ? "en haut" : "en bas"));
+  if(!parts.length) return "🎯 Groupement bien centré. Concentrez-vous sur sa taille (rayon moyen " + dec(g.cmRad, 1) + " cm).";
+  const mv = []; if(Math.abs(dx) > lim) mv.push(dx > 0 ? "vers la droite" : "vers la gauche"); if(Math.abs(dy) > lim) mv.push(dy > 0 ? "vers le haut" : "vers le bas");
+  return "🔧 Le groupement est décalé de " + parts.join(" et ") + ". Si c'est constant, déplacez le viseur " + mv.join(" et ") + " (le viseur suit les flèches).";
+}
+function arrowNumberReport(A, g){
+  if(!g) return [];
+  const by = {}; A.forEach(a => { if(a.n && a.x != null && !a.k){ (by[a.n] = by[a.n] || []).push(Math.hypot(a.x - g.mx, a.y - g.my)); } });
+  const out = Object.keys(by).filter(k => by[k].length >= 3).map(k => ({ n: k, c: by[k].length, d: by[k].reduce((t, v) => t + v, 0) / by[k].length * g.R }));
+  const avg = out.length ? out.reduce((t, o) => t + o.d, 0) / out.length : 0;
+  out.forEach(o => { o.bad = out.length >= 3 && o.d > avg * 1.35 && o.d - avg > 1; });
+  return out.sort((a, b) => Number(a.n) - Number(b.n));
+}
+
+/* ================= Accueil ================= */
+function viewHome(v){
+  if(!me){
+    v.appendChild(h('<div class="card" style="text-align:center;padding:1.4rem 1rem">' + targetIcon(120) +
+      '<h2 style="font-size:1.4rem;margin:.6rem 0 .3rem">Bienvenue sur Sagittaire</h2><p class="muted">Placez chaque flèche sur la cible, suivez votre progression, réglez votre viseur et participez aux compétitions de votre club en direct.</p>' +
+      '<div class="row" style="justify-content:center;margin-top:.8rem"><button class="btn pri" id="hLogin">Se connecter / créer un profil</button><a class="btn" href="#/comps">🏆 Voir les compétitions</a></div></div>'));
+    $("hLogin").onclick = loginDialog;
+    archersCard(v); return;
+  }
+  const hero = h('<div class="hero"><div class="kpi"><b id="kSes">–</b><span>Séances</span></div><div class="kpi"><b id="kArr">–</b><span>Flèches</span></div><div class="kpi"><b id="kAvg">–</b><span>Moy./flèche (30 j)</span></div></div>');
+  v.appendChild(hero);
+  v.appendChild(h('<div class="row" style="margin-bottom:.8rem"><a class="btn pri grow" href="#/new">🎯 Nouvelle séance</a><a class="btn" href="#/stats">📈 Mes stats</a></div>'));
+  const live = h('<div id="liveComps"></div>'); v.appendChild(live);
+  const card = h('<div class="card"><h2>Mes séances</h2><ul class="list" id="sesList"><li class="empty">Chargement…</li></ul></div>'); v.appendChild(card);
+  sub("sessions/" + me.id, val => {
+    const S = obj(val), ids = Object.keys(S).filter(k => S[k]).sort((a, b) => (S[b].date + (S[b].t || 0)).localeCompare(S[a].date + (S[a].t || 0)) || (S[b].t || 0) - (S[a].t || 0));
+    let nA = 0, t30 = 0, n30 = 0; const lim = Date.now() - 30 * 864e5;
+    ids.forEach(k => { const sm = sessionSummary(S[k]); nA += sm.n; if((S[k].t || 0) >= lim){ t30 += sm.tot; n30 += sm.n; } });
+    $("kSes").textContent = ids.length; $("kArr").textContent = nA; $("kAvg").textContent = n30 ? dec(t30 / n30) : "—";
+    const ul = $("sesList"); ul.innerHTML = "";
+    if(!ids.length){ ul.appendChild(h('<li class="empty">Aucune séance. Touchez « Nouvelle séance » pour commencer.</li>')); return; }
+    ids.slice(0, 40).forEach(k => ul.appendChild(sessionItem(me.id, k, S[k])));
+  });
+  sub("comps", val => {
+    const C = obj(val), t = today(), list = Object.keys(C).filter(k => C[k] && C[k].date >= t && C[k].archers && C[k].archers[me.id]);
+    live.innerHTML = list.length ? '<div class="card"><h2>Mes compétitions</h2><ul class="list">' + list.map(k => '<li class="item click" data-c="' + k + '"><div class="main"><b>🏆 ' + esc(C[k].name) + '</b><small>' + fmtDate(C[k].date) + (C[k].place ? " · " + esc(C[k].place) : "") + '</small></div>' + (C[k].date === t ? '<span class="tag live">AUJOURD\'HUI</span>' : "") + '</li>').join("") + '</ul></div>' : "";
+    live.querySelectorAll("[data-c]").forEach(li => li.onclick = () => location.hash = "#/c/" + li.dataset.c);
+  });
+}
+function sessionItem(aid, sid, s){
+  const sm = sessionSummary(s), r = roundById(s.round), li = h('<li class="item click"></li>');
+  const parts = arr(s.parts), dist = parts.length ? Array.from(new Set(parts.map(p => p.d ? p.d + " m" : ""))).filter(Boolean).join("/") : "";
+  li.innerHTML = '<div class="main"><b>' + (s.comp ? "🏆 " : "") + esc(s.title || r.name) + '</b><small>' + fmtShort(s.date) + (dist ? " · " + dist : "") + " · " + sm.n + " flèches" + (sm.x ? " · " + sm.x + " X" : "") + '</small></div><div class="score">' + sm.tot + '<small>' + (sm.n ? dec(sm.avg) + "/fl." : "") + '</small></div>';
+  li.onclick = () => location.hash = "#/s/" + aid + "/" + sid;
+  return li;
+}
+function archersCard(v){
+  const c = h('<div class="card"><h2>Archers</h2><p class="muted small">Entraîneur ? Touchez un archer pour suivre ses résultats.</p><ul class="list" id="arList"></ul></div>'); v.appendChild(c);
+  const draw = () => { const ul = $("arList"); if(!ul) return; const L = Object.keys(archers).filter(k => archers[k] && archers[k].name).sort((a, b) => archers[a].name.localeCompare(archers[b].name, "fr"));
+    ul.innerHTML = L.length ? L.map(k => '<li class="item click" data-a="' + k + '"><div class="main"><b>' + esc(archers[k].name) + '</b><small>' + esc([archers[k].club, BOW_TYPES[archers[k].bow]].filter(Boolean).join(" · ")) + '</small></div><span class="muted">›</span></li>').join("") : '<li class="empty">Aucun archer.</li>';
+    ul.querySelectorAll("[data-a]").forEach(li => li.onclick = () => location.hash = "#/a/" + li.dataset.a); };
+  sub("archers", v2 => { archers = obj(v2); draw(); });
+}
+function targetIcon(px){ return '<svg viewBox="-1.1 -1.1 2.2 2.2" width="' + px + '" height="' + px + '">' + faceSVG("wa10") + '</svg>'; }
+
+/* ----- Profil d'un archer (vue entraîneur) ----- */
+function viewArcher(v, aid){
+  const a = archers[aid];
+  v.appendChild(h('<div class="card"><h2 id="arName">' + esc(a ? a.name : "Archer") + '</h2><p class="muted small" id="arSub">' + esc(a ? [a.club, BOW_TYPES[a.bow]].filter(Boolean).join(" · ") : "") + '</p><div class="row"><a class="btn sm" href="#/stats/' + aid + '">📈 Statistiques</a></div></div>'));
+  const card = h('<div class="card"><h2>Séances</h2><ul class="list" id="arSes"><li class="empty">Chargement…</li></ul></div>'); v.appendChild(card);
+  sub("sessions/" + aid, val => { const S = obj(val), ids = Object.keys(S).filter(k => S[k]).sort((x, y) => (S[y].t || 0) - (S[x].t || 0)); const ul = $("arSes"); ul.innerHTML = "";
+    if(!ids.length) ul.appendChild(h('<li class="empty">Aucune séance.</li>')); ids.forEach(k => ul.appendChild(sessionItem(aid, k, S[k]))); });
+}
+
+/* ================= Nouvelle séance ================= */
+function viewNew(v){
+  if(!me){ v.appendChild(h('<div class="card"><h2>Nouvelle séance</h2><p class="muted">Connectez-vous pour enregistrer vos tirs.</p><button class="btn pri" id="nLogin">Se connecter</button></div>')); $("nLogin").onclick = loginDialog; return; }
+  let pick = LS.get("sg_lastRound", "free"), cfg = LS.get("sg_freeCfg", { d: 18, face: "wa10", size: 40, ape: 3 });
+  const gear = { bows: {}, arrows: {} };
+  const c = h('<div class="card"><h2>Nouvelle séance</h2>' +
+    '<label class="f">Ronde</label><div class="round-pick" id="rp"></div>' +
+    '<div id="freeBox"><label class="f">Distance (m)</label><input class="in" id="nD" type="number" min="1" max="150" inputmode="numeric">' +
+    '<label class="f">Blason</label><div class="face-pick" id="fp"></div><label class="f">Taille du blason</label><select class="in" id="nSize"></select>' +
+    '<label class="f">Flèches par volée</label><div class="seg" id="nApe">' + [1, 2, 3, 4, 5, 6].map(n => '<button data-n="' + n + '">' + n + '</button>').join("") + '</div></div>' +
+    '<div class="grid2"><div><label class="f">Date</label><input class="in" id="nDate" type="date"></div><div><label class="f">Lieu</label><input class="in" id="nPlace" maxlength="40" placeholder="Club, extérieur…"></div></div>' +
+    '<div class="grid2"><div><label class="f">Arc</label><select class="in" id="nBow"></select></div><div><label class="f">Flèches</label><select class="in" id="nArr"></select></div></div>' +
+    '<label class="f">Titre (facultatif)</label><input class="in" id="nTitle" maxlength="40">' +
+    '<button class="btn pri full" id="nGo" style="margin-top:1rem">🎯 Commencer</button></div>');
+  v.appendChild(c);
+  $("nDate").value = today(); $("nPlace").value = LS.get("sg_lastPlace", "");
+  function drawRounds(){ $("rp").innerHTML = ROUNDS.map(r => '<button type="button" data-r="' + r.id + '" class="' + (r.id === pick ? "on" : "") + '"><b>' + esc(r.name) + '</b><small>' + esc(r.desc) + '</small></button>').join("");
+    $("rp").querySelectorAll("button").forEach(b => b.onclick = () => { pick = b.dataset.r; drawRounds(); });
+    $("freeBox").hidden = pick !== "free"; }
+  function drawFree(){
+    $("nD").value = cfg.d;
+    $("fp").innerHTML = Object.keys(FACES).map(k => '<button type="button" data-f="' + k + '" class="' + (k === cfg.face ? "on" : "") + '"><svg viewBox="-1.1 -1.1 2.2 2.2">' + faceSVG(k) + '</svg>' + esc(FACES[k].name) + '</button>').join("");
+    $("fp").querySelectorAll("button").forEach(b => b.onclick = () => { cfg.face = b.dataset.f; if(FACES[cfg.face].sizes.indexOf(Number(cfg.size)) < 0) cfg.size = FACES[cfg.face].def; drawFree(); });
+    $("nSize").innerHTML = FACES[cfg.face].sizes.map(s => '<option value="' + s + '"' + (Number(cfg.size) === s ? " selected" : "") + '>' + s + ' cm</option>').join("");
+    $("nApe").querySelectorAll("button").forEach(b => { b.classList.toggle("on", Number(b.dataset.n) === Number(cfg.ape)); b.onclick = () => { cfg.ape = Number(b.dataset.n); drawFree(); }; });
+  }
+  $("nSize").onchange = () => cfg.size = Number($("nSize").value);
+  drawRounds(); drawFree();
+  const fillGear = () => {
+    const B = obj(gear.bows), R = obj(gear.arrows), lb = LS.get("sg_lastGear", {});
+    $("nBow").innerHTML = '<option value="">—</option>' + Object.keys(B).map(k => '<option value="' + k + '"' + (lb.bow === k ? " selected" : "") + '>' + esc(B[k].name) + '</option>').join("");
+    $("nArr").innerHTML = '<option value="">—</option>' + Object.keys(R).map(k => '<option value="' + k + '"' + (lb.arrows === k ? " selected" : "") + '>' + esc(R[k].name) + (R[k].count ? " (" + R[k].count + ")" : "") + '</option>').join("");
+  };
+  sub("gear/" + me.id, val => { const g = obj(val); gear.bows = obj(g.bows); gear.arrows = obj(g.arrows); fillGear(); });
+  $("nGo").onclick = () => {
+    const r = roundById(pick);
+    let parts = arr(r.parts).map(p => Object.assign({}, p));
+    if(r.free){ cfg.d = Math.max(1, Math.min(150, Number($("nD").value) || 18)); cfg.size = Number($("nSize").value); parts = [{ d: cfg.d, face: cfg.face, size: cfg.size, ape: cfg.ape, ends: 0 }]; LS.set("sg_freeCfg", cfg); }
+    LS.set("sg_lastRound", pick); LS.set("sg_lastPlace", $("nPlace").value.trim()); LS.set("sg_lastGear", { bow: $("nBow").value, arrows: $("nArr").value });
+    const sid = uid(), s = { date: $("nDate").value || today(), t: Date.now(), round: r.id, title: $("nTitle").value.trim(), place: $("nPlace").value.trim(), parts: parts, bow: $("nBow").value || "", arrows: $("nArr").value || "" };
+    put("sessions/" + me.id + "/" + sid, s).then(() => location.hash = "#/s/" + me.id + "/" + sid);
+  };
+}
+
+/* ================= Pointage d'une séance ================= */
+function viewShoot(v, aid, sid){
+  let S = null, gear = {}, cur = [], editIdx = -1, sel = -1, moveSel = false, mode = LS.get("sg_entry", "target"), showAll = LS.get("sg_showAll", false), zoom = 1, pan = { x: 0, y: 0 }, compInfo = null;
+  const mine = isMe(aid);
+  v.appendChild(h('<div class="shoot">' +
+    '<div class="shoot-head"><button class="icon-btn" id="shBack" aria-label="Retour">‹</button><div class="ttl"><b id="shTitle">Séance</b><small id="shSub"></small></div><div class="tot" id="shTot">0<small>&nbsp;</small></div></div>' +
+    '<div id="shComp"></div>' +
+    '<div class="target-box" id="tbox"><svg class="tgt" id="tgt" viewBox="-1.1 -1.1 2.2 2.2"><g id="tview"><g id="tface"></g><g id="tgrp"></g><g id="tall"></g><g id="tcur"></g></g></svg>' +
+    '<div class="zoom-tools no-print"><button id="zIn" aria-label="Zoom avant">+</button><button id="zOut" aria-label="Zoom arrière">−</button><button id="zAll" aria-label="Afficher toutes les flèches" title="Toutes les flèches de la séance">◎</button></div>' +
+    '<div class="loupe" id="loupe"><svg viewBox="-0.2 -0.2 0.4 0.4"><g id="lview"></g><path d="M-.2 0H.2M0 -.2V.2" stroke="#00E5FF" stroke-width=".004"/></svg><div class="lbl" id="lupLbl"></div></div></div>' +
+    '<div class="card" style="padding:.7rem" id="entryCard">' +
+      '<div class="row" style="margin-bottom:.5rem"><div class="seg grow" id="mSeg"><button data-m="target">🎯 Sur la cible</button><button data-m="keys">🔢 Pointage</button></div></div>' +
+      '<div class="end-strip" id="strip"></div>' +
+      '<div class="small" id="moveHint" hidden style="margin-top:.4rem;color:var(--blue);font-weight:650">↔ Touchez la cible pour déplacer cette flèche.</div><div class="keypad" id="keys" style="margin-top:.5rem"></div>' +
+      '<div id="numBox" style="margin-top:.5rem" hidden><div class="small muted" style="margin-bottom:.25rem">Numéro de la flèche sélectionnée</div><div class="numbers" id="nums"></div></div>' +
+      '<div class="row" style="margin-top:.6rem"><button class="btn sm" id="bUndo">↶ Annuler</button><button class="btn sm danger" id="bDel" hidden>🗑 Retirer</button><span class="grow"></span><button class="btn pri" id="bNext">Volée suivante ›</button></div>' +
+    '</div>' +
+    '<div class="card"><h2>Volées</h2><table class="ends" id="ends"></table></div>' +
+    '<div class="card" id="sumCard"></div>' +
+    '<div class="card no-print" id="setCard"></div>' +
+  '</div>'));
+  $("shBack").onclick = () => history.length > 1 ? history.back() : (location.hash = "#/");
+  if(!mine){ $("entryCard").hidden = true; }
+  const part = () => { const P = arr(S && S.parts); if(!P.length) return { d: 18, face: "wa10", size: 40, ape: 3, ends: 0 };
+    // partie de la volée en cours : selon le nombre de volées faites
+    let i = editIdx >= 0 ? (arr(S.ends)[editIdx] || {}).part || 0 : partOfNext(); return P[Math.min(i, P.length - 1)]; };
+  function partOfNext(){ const P = arr(S.parts), n = arr(S.ends).filter(e => e && arr(e.a).length).length; let acc = 0; for(let i = 0; i < P.length; i++){ if(!P[i].ends) return i; acc += P[i].ends; if(n < acc) return i; } return P.length - 1; }
+  function finished(){ const P = arr(S.parts); if(P.some(p => !p.ends)) return false; const n = arr(S.ends).filter(e => e && arr(e.a).length).length; return n >= P.reduce((t, p) => t + p.ends, 0); }
+  // ----- dessin -----
+  function drawFace(){ const p = part(); $("tface").innerHTML = faceSVG(p.face); $("lview").innerHTML = faceSVG(p.face) + '<g id="lcur"></g>'; }
+  function arrowDot(face, a, i, curEnd){
+    const q = toView(face, a), r = curEnd ? 0.028 : 0.018;
+    return '<g' + (curEnd ? ' data-i="' + i + '"' : "") + '><circle cx="' + q.x + '" cy="' + q.y + '" r="' + r + '" fill="' + (curEnd ? (i === sel ? "#00E5FF" : "#39FF88") : "rgba(57,255,136,.55)") + '" stroke="#081018" stroke-width=".006"/>' +
+      (curEnd ? '<text x="' + q.x + '" y="' + (q.y + 0.011) + '" text-anchor="middle" font-size=".03" font-weight="900" fill="#081018">' + (a.n || (i + 1)) + '</text>' : "") + '</g>';
+  }
+  function drawArrows(){
+    const p = part();
+    $("tcur").innerHTML = cur.map((a, i) => a.k ? "" : arrowDot(p.face, a, i, true)).join("");
+    let all = "";
+    if(showAll){ arr(S.ends).forEach((e, ei) => { if(ei === editIdx || !e) return; const pf = (arr(S.parts)[e.part || 0] || p).face; if(pf !== p.face) return; arr(e.a).forEach(a => { if(a && !a.k && a.x != null) all += arrowDot(p.face, a, 0, false); }); }); }
+    $("tall").innerHTML = all;
+    // groupement de la séance (ellipse)
+    const A = sessionArrows(S).filter(a => (arr(S.parts)[a.part] || p).face === p.face), g = showAll ? grouping(A, p.face, p.size) : null;
+    if(g && g.n >= 4){ const sp = spotCenters(p.face), c = sp.length === 1 ? sp[0] : sp[1];
+      $("tgrp").innerHTML = '<ellipse cx="' + (c.x + g.mx * c.k) + '" cy="' + (c.y + g.my * c.k) + '" rx="' + Math.max(0.01, g.sx * 2 * c.k) + '" ry="' + Math.max(0.01, g.sy * 2 * c.k) + '" fill="rgba(0,229,255,.12)" stroke="#00E5FF" stroke-width=".006" stroke-dasharray=".02 .015"/><circle cx="' + (c.x + g.mx * c.k) + '" cy="' + (c.y + g.my * c.k) + '" r=".012" fill="#00E5FF"/>';
+    } else $("tgrp").innerHTML = "";
+    $("zAll").style.background = showAll ? "rgba(0,229,255,.55)" : "";
+  }
+  function applyZoom(){ $("tview").setAttribute("transform", "translate(" + (-pan.x * (zoom - 1)) + " " + (-pan.y * (zoom - 1)) + ") scale(" + zoom + ")"); }
+  function drawStrip(){
+    const p = part(), st = $("strip"); st.innerHTML = "";
+    const order = cur.map((a, i) => ({ a: a, i: i })).sort((x, y) => arrowVal(y.a) - arrowVal(x.a) || (y.a.X ? 1 : 0) - (x.a.X ? 1 : 0));
+    order.forEach(o => { const b = h('<button class="pill' + (o.i === sel ? " sel" : "") + '" style="' + pillStyle(p.face, o.a) + '">' + arrowLabel(o.a) + (o.a.n ? "<sup>" + o.a.n + "</sup>" : "") + '</button>');
+      b.onclick = () => { sel = sel === o.i ? -1 : o.i; moveSel = sel >= 0 && !o.a.k; redraw(); }; st.appendChild(b); });
+    for(let i = cur.length; i < p.ape; i++) st.appendChild(h('<span class="pill slot">·</span>'));
+    const et = cur.reduce((t, a) => t + arrowVal(a), 0);
+    st.appendChild(h('<span style="margin-left:auto;font-weight:850;font-size:1.2rem">' + et + '</span>'));
+    // pavé numérique
+    const F = FACES[p.face], vals = F.rings.map(r => r.s).reverse(), K = $("keys");
+    K.hidden = mode !== "keys";
+    K.innerHTML = ""; const items = [{ l: "X", s: 10, X: true }].concat(vals.map(s => ({ l: String(s), s: s }))).concat([{ l: "M", s: 0 }]);
+    if(p.face === "bead") items.shift();
+    items.forEach(it => { const b = h('<button style="' + pillStyle(p.face, { s: it.s }) + '">' + it.l + '</button>'); b.onclick = () => { const a = { s: it.s, k: 1 }; if(it.X) a.X = 1; addArrow(a); }; K.appendChild(b); });
+    // numéros de flèches
+    const set = gear.arrowSet, nb = $("numBox");
+    nb.hidden = !(set && set.count && set.numbered && sel >= 0);
+    if(!nb.hidden){ const used = {}; cur.forEach((a, i) => { if(a.n && i !== sel) used[a.n] = 1; }); const N = $("nums"); N.innerHTML = "";
+      for(let n = 1; n <= Math.min(24, set.count); n++){ const b = h('<button class="' + (used[n] ? "used" : "") + '"' + (cur[sel] && Number(cur[sel].n) === n ? ' style="background:var(--accent);color:var(--accent-ink)"' : "") + '>' + n + '</button>');
+        b.onclick = () => { if(cur[sel]){ cur[sel].n = Number(cur[sel].n) === n ? 0 : n; if(!cur[sel].n) delete cur[sel].n; } const nx = cur.findIndex((a, i) => i > sel && !a.n); sel = nx; persistCur(); redraw(); }; N.appendChild(b); } }
+    $("bDel").hidden = sel < 0;
+    $("moveHint").hidden = !(moveSel && sel >= 0 && mode === "target");
+    const full = cur.length >= p.ape;
+    $("bNext").textContent = editIdx >= 0 ? "✓ Enregistrer la volée" : (full ? (finished() ? "Terminer" : "Volée suivante ›") : "Volée suivante ›");
+    $("bNext").disabled = !cur.length;
+    $("bUndo").disabled = !cur.length;
+    $("mSeg").querySelectorAll("button").forEach(b => b.classList.toggle("on", b.dataset.m === mode));
+  }
+  function drawEnds(){
+    const T = $("ends"), P = arr(S.parts), E = arr(S.ends), maxApe = Math.max.apply(null, P.map(p => p.ape).concat([3]));
+    let html = '<tr><th>#</th>' + Array.from({ length: maxApe }, (_, i) => '<th></th>').join("") + '<th>Vol.</th><th>Cumul</th></tr>', run = 0, lastPart = -1;
+    E.forEach((e, i) => { if(!e || !arr(e.a).length) return; const p = P[e.part || 0] || P[0] || part();
+      if(P.length > 1 && (e.part || 0) !== lastPart){ lastPart = e.part || 0; const pt = E.filter(x => x && (x.part || 0) === lastPart).reduce((t, x) => t + arr(x.a).reduce((u, a) => u + arrowVal(a), 0), 0);
+        html += '<tr class="dist-h"><td colspan="' + (maxApe + 3) + '">' + (p.d ? p.d + " m · " : "") + esc(FACES[p.face].name) + " " + p.size + ' cm · ' + pt + ' pts</td></tr>'; }
+      const A = arr(e.a).slice().sort((x, y) => arrowVal(y) - arrowVal(x) || (y.X ? 1 : 0) - (x.X ? 1 : 0)), et = A.reduce((t, a) => t + arrowVal(a), 0); run += et;
+      html += '<tr class="' + (mine ? "click " : "") + (i === editIdx ? "cur" : "") + '" data-e="' + i + '"><td class="rt">' + (i + 1) + '</td>' + Array.from({ length: maxApe }, (_, k) => '<td class="a">' + (A[k] ? '<span class="mini" style="' + pillStyle(p.face, A[k]) + '">' + arrowLabel(A[k]) + '</span>' : "") + '</td>').join("") + '<td class="et">' + et + '</td><td class="rt">' + run + '</td></tr>';
+    });
+    if(!E.some(e => e && arr(e.a).length)) html += '<tr><td colspan="' + (maxApe + 3) + '" class="empty">Aucune volée encore.</td></tr>';
+    T.innerHTML = html;
+    if(mine) T.querySelectorAll("tr[data-e]").forEach(tr => tr.onclick = () => openEnd(Number(tr.dataset.e)));
+  }
+  function drawSummary(){
+    const sm = sessionSummary(S), A = sessionArrows(S), p = part(), g = grouping(A.filter(a => (arr(S.parts)[a.part] || p).face === p.face), p.face, p.size);
+    shTot(sm);
+    const dist = {}; A.forEach(a => { const l = arrowLabel(a); dist[l] = (dist[l] || 0) + 1; });
+    const F = FACES[p.face], labels = (p.face === "bead" ? [] : ["X"]).concat(F.rings.map(r => String(r.s)).reverse()).concat(["M"]);
+    const mxd = Math.max.apply(null, labels.map(l => dist[l] || 0).concat([1]));
+    const nums = arrowNumberReport(A, g);
+    $("sumCard").innerHTML = '<h2>Résumé</h2><div class="hero" style="margin:0 0 .6rem">' +
+      kpi(sm.tot, "Total") + kpi(dec(sm.avg), "Moy./flèche") + kpi(sm.ends ? dec(sm.tot / sm.ends, 1) : "—", "Moy./volée") + kpi(sm.x + " / " + sm.t10, "X / 10") + kpi(sm.n, "Flèches") + kpi(sm.miss, "Manquées") + '</div>' +
+      '<h3>Répartition</h3><div class="bars" style="margin-bottom:1.4rem">' + labels.map(l => '<div style="height:' + ((dist[l] || 0) / mxd * 100) + '%;' + pillStyle(p.face, l === "M" ? { s: 0 } : { s: l === "X" ? (p.face === "bead" ? 11 : 10) : Number(l) }) + '"><em>' + (dist[l] || "") + '</em><span>' + l + '</span></div>').join("") + '</div>' +
+      (g && g.n >= 6 ? '<h3>Groupement</h3><p class="small muted" style="margin:.2rem 0">Rayon moyen : <b>' + dec(g.cmRad, 1) + ' cm</b> · centre : ' + dec(Math.abs(g.cmx), 1) + ' cm ' + (g.cmx >= 0 ? "droite" : "gauche") + ', ' + dec(Math.abs(g.cmy), 1) + ' cm ' + (g.cmy <= 0 ? "haut" : "bas") + ' (◎ pour le voir sur la cible)</p><div class="advice">' + sightAdvice(g) + '</div>' : "") +
+      (nums.length ? '<h3>Analyse par flèche</h3><div class="chips">' + nums.map(o => '<span class="chip' + (o.bad ? " on" : "") + '" title="' + o.c + ' tirs">#' + o.n + " · " + dec(o.d, 1) + ' cm' + (o.bad ? " ⚠" : "") + '</span>').join("") + '</div><p class="small muted">Distance moyenne au centre du groupement. ⚠ = flèche qui s\'écarte souvent : vérifiez la pointe, l\'encoche et les plumes.</p>' : "");
+  }
+  function shTot(sm){ sm = sm || sessionSummary(S); const live = editIdx < 0 ? cur.reduce((t, a) => t + arrowVal(a), 0) : 0;
+    $("shTot").innerHTML = (sm.tot + live) + '<small>' + (sm.max ? "/ " + sm.max : (sm.n + (editIdx < 0 ? cur.length : 0)) + " fl.") + '</small>'; }
+  function kpi(v, l){ return '<div class="kpi"><b>' + v + '</b><span>' + l + '</span></div>'; }
+  function drawSettings(){
+    if(!mine){ $("setCard").innerHTML = '<p class="muted small">Vue en lecture seule.</p>'; return; }
+    $("setCard").innerHTML = '<h2>Séance</h2><label class="f">Titre</label><input class="in" id="stTitle" maxlength="40" value="' + esc(S.title || "") + '">' +
+      '<label class="f">Notes (météo, sensations, réglages…)</label><textarea class="in" id="stNotes" rows="3" maxlength="600">' + esc(S.notes || "") + '</textarea>' +
+      '<div class="row" style="margin-top:.6rem"><button class="btn sm" id="stSave">💾 Enregistrer</button><button class="btn sm" id="stPrint">🖨 Imprimer</button><span class="grow"></span><button class="btn sm danger" id="stDel">Supprimer la séance</button></div>';
+    $("stSave").onclick = () => { put("sessions/" + aid + "/" + sid + "/title", $("stTitle").value.trim()); put("sessions/" + aid + "/" + sid + "/notes", $("stNotes").value.trim()); toast("Enregistré."); };
+    $("stPrint").onclick = () => window.print();
+    $("stDel").onclick = () => confirmBox("Supprimer cette séance et toutes ses volées ?", "Supprimer").then(ok => { if(!ok) return; put("sessions/" + aid + "/" + sid, null); if(S.comp) put("comps/" + S.comp + "/results/" + aid, null); location.hash = "#/"; });
+  }
+  function redraw(){ drawArrows(); drawStrip(); if(S) shTot(); }
+  function drawAll(){
+    const r = roundById(S.round), p = part(), sm = sessionSummary(S);
+    $("shTitle").textContent = (S.comp ? "🏆 " : "") + (S.title || r.name);
+    $("shSub").textContent = [fmtShort(S.date), p.d ? p.d + " m" : "", FACES[p.face].name + " " + p.size + " cm", (archers[aid] && !mine ? archers[aid].name : ""), finished() ? "terminée" : ("volée " + (editIdx >= 0 ? editIdx + 1 : sm.ends + 1))].filter(Boolean).join(" · ");
+    drawFace(); redraw(); drawEnds(); drawSummary(); drawSettings();
+  }
+  // ----- saisie -----
+  const curKey = "sg_cur_" + sid;
+  function persistCur(){ if(editIdx < 0) LS.set(curKey, cur); }
+  function addArrow(a){
+    const p = part(); if(cur.length >= p.ape){ toast("Volée complète : touchez « Volée suivante »."); return; }
+    cur.push(a); sel = -1; moveSel = false;
+    const set = gear.arrowSet; if(set && set.numbered && set.count) sel = cur.length - 1;
+    persistCur(); redraw();
+    if(navigator.vibrate) try{ navigator.vibrate(12); }catch(e){}
+  }
+  function openEnd(i){ const e = arr(S.ends)[i]; if(!e) return; if(editIdx < 0) LS.set(curKey + "_held", cur.length ? cur : null); editIdx = i; cur = arr(e.a).map(a => Object.assign({}, a)); sel = -1; drawAll(); document.querySelector(".target-box").scrollIntoView({ behavior: "smooth", block: "center" }); toast("Modification de la volée " + (i + 1)); }
+  $("bUndo").onclick = () => { if(sel >= 0){ cur.splice(sel, 1); sel = -1; } else cur.pop(); persistCur(); redraw(); };
+  $("bDel").onclick = () => { if(sel >= 0){ cur.splice(sel, 1); sel = -1; persistCur(); redraw(); } };
+  $("bNext").onclick = () => {
+    if(!cur.length) return;
+    const p = part(), wasEdit = editIdx >= 0;
+    if(!wasEdit && cur.length < p.ape && !confirm("Seulement " + cur.length + " flèche(s) sur " + p.ape + ". Enregistrer quand même ?")) return;
+    const E = arr(S.ends), i = wasEdit ? editIdx : E.length, pi = wasEdit ? ((E[editIdx] || {}).part || 0) : partOfNext();
+    const out = cur.map(a => { const o = { s: a.s || 0 }; if(!a.k){ o.x = Math.round(a.x * 10000) / 10000; o.y = Math.round(a.y * 10000) / 10000; if(a.p) o.p = a.p; } else o.k = 1; if(a.X) o.X = 1; if(a.n) o.n = a.n; return o; });
+    // la volée en cours est vidée AVANT l'écriture (la base renvoie la mise à jour tout de suite)
+    cur = []; sel = -1; moveSel = false; editIdx = -1; LS.set(curKey, []);
+    if(wasEdit){ const held = LS.get(curKey + "_held", null); if(held && held.length){ cur = held; LS.set(curKey, held); } LS.set(curKey + "_held", null); }
+    put("sessions/" + aid + "/" + sid + "/ends/" + i, { part: pi, a: out, t: Date.now() }).then(() => { if(S.comp) pushCompResult(); });
+    if(S) drawAll();
+    if(wasEdit) toast("Volée " + (i + 1) + " corrigée.");
+  };
+  function pushCompResult(){ once("sessions/" + aid + "/" + sid).then(s => { if(!s || !s.comp) return; const sm = sessionSummary(s), ends = arr(s.ends).filter(e => e && arr(e.a).length).map(e => arr(e.a).reduce((t, a) => t + arrowVal(a), 0));
+    put("comps/" + s.comp + "/results/" + aid, { tot: sm.tot, x: sm.x, t10: sm.t10, n: sm.n, ends: ends, t: Date.now() }); }); }
+  $("mSeg").querySelectorAll("button").forEach(b => b.onclick = () => { mode = b.dataset.m; LS.set("sg_entry", mode); redraw(); });
+  $("zIn").onclick = () => { zoom = Math.min(4, zoom * 1.5); applyZoom(); };
+  $("zOut").onclick = () => { zoom = Math.max(1, zoom / 1.5); if(zoom === 1) pan = { x: 0, y: 0 }; applyZoom(); };
+  $("zAll").onclick = () => { showAll = !showAll; LS.set("sg_showAll", showAll); drawArrows(); };
+  // ----- toucher la cible : loupe au-dessus du doigt, la flèche se pose au relâchement -----
+  const svg = $("tgt"), box = $("tbox"), lp = $("loupe");
+  let drag = null;
+  function svgPoint(ev){ const r = svg.getBoundingClientRect(); const vx = ((ev.clientX - r.left) / r.width) * 2.2 - 1.1, vy = ((ev.clientY - r.top) / r.height) * 2.2 - 1.1;
+    // annule le zoom
+    return { x: (vx + pan.x * (zoom - 1)) / zoom, y: (vy + pan.y * (zoom - 1)) / zoom }; }
+  const OFFSET = 52;
+  function pointer(ev){
+    const touch = ev.pointerType === "touch" || ev.pointerType === "pen";
+    const e2 = { clientX: ev.clientX, clientY: ev.clientY - (touch ? OFFSET : 0) };
+    return svgPoint(e2);
+  }
+  function showLoupe(ev, q){
+    const p = part(), sc = fromView(p.face, q.x, q.y), r = scoreAt(p.face, p.size, sc.x, sc.y);
+    const br = box.getBoundingClientRect(); let lx = ev.clientX - br.left - 66, ly = ev.clientY - br.top - 66 - 120;
+    if(ly < 4) ly = ev.clientY - br.top + 40; lx = Math.max(4, Math.min(br.width - 136, lx));
+    lp.style.left = lx + "px"; lp.style.top = ly + "px"; lp.style.display = "block";
+    lp.querySelector("svg").setAttribute("viewBox", (q.x - 0.14) + " " + (q.y - 0.14) + " 0.28 0.28");
+    lp.querySelector("path").setAttribute("d", "M" + (q.x - 0.14) + " " + q.y + "H" + (q.x + 0.14) + "M" + q.x + " " + (q.y - 0.14) + "V" + (q.y + 0.14));
+    lp.querySelector("path").setAttribute("stroke-width", ".003");
+    $("lcur").innerHTML = cur.map((a, i) => a.k ? "" : arrowDot(p.face, a, i, true)).join("") + '<circle cx="' + q.x + '" cy="' + q.y + '" r=".012" fill="none" stroke="#00E5FF" stroke-width=".004"/>';
+    const lab = r.s ? (r.x && r.s >= 10 ? "X" : r.s) : "M"; $("lupLbl").textContent = lab;
+    // repère sur la cible
+    let mk = $("tmark"); if(!mk){ mk = document.createElementNS("http://www.w3.org/2000/svg", "circle"); mk.id = "tmark"; mk.setAttribute("r", ".02"); mk.setAttribute("fill", "none"); mk.setAttribute("stroke", "#00E5FF"); mk.setAttribute("stroke-width", ".008"); $("tcur").appendChild(mk); }
+    mk.setAttribute("cx", q.x); mk.setAttribute("cy", q.y);
+  }
+  svg.addEventListener("pointerdown", ev => {
+    if(!mine || mode !== "target") return;
+    // un toucher place toujours une flèche (même tout près d'une autre) ; pour déplacer une flèche, touchez sa pastille puis la cible
+    ev.preventDefault(); try{ svg.setPointerCapture(ev.pointerId); }catch(e){}
+    drag = { moved: false, sel: (moveSel && sel >= 0) ? sel : -1, x0: ev.clientX, y0: ev.clientY };
+    showLoupe(ev, pointer(ev));
+  });
+  svg.addEventListener("pointermove", ev => { if(!drag) return; if(Math.hypot(ev.clientX - drag.x0, ev.clientY - drag.y0) > 6) drag.moved = true; showLoupe(ev, pointer(ev)); });
+  const endDrag = (ev, cancel) => {
+    if(!drag) return; lp.style.display = "none"; const mk = $("tmark"); if(mk) mk.remove();
+    const d = drag; drag = null; if(cancel) return;
+    const q = pointer(ev), p = part();
+    if(Math.abs(q.x) > 1.12 || Math.abs(q.y) > 1.12) return;
+    const sc = fromView(p.face, q.x, q.y), r = scoreAt(p.face, p.size, sc.x, sc.y);
+    const a = { s: r.s, x: sc.x, y: sc.y }; if(r.x) a.X = 1; if(sc.p) a.p = sc.p;
+    if(d.sel >= 0 && cur[d.sel]){ const n = cur[d.sel].n; cur[d.sel] = a; if(n) a.n = n; sel = -1; moveSel = false; persistCur(); redraw(); return; }
+    addArrow(a);
+  };
+  svg.addEventListener("pointerup", ev => endDrag(ev, false));
+  svg.addEventListener("pointercancel", ev => endDrag(ev, true));
+  // ----- données -----
+  sub("sessions/" + aid + "/" + sid, val => {
+    if(!val){ $("view").innerHTML = '<div class="card"><h2>Séance introuvable</h2><p class="muted">Elle a peut-être été supprimée.</p><a class="btn" href="#/">Accueil</a></div>'; return; }
+    S = normSession(val);
+    if(editIdx < 0 && !cur.length) cur = LS.get(curKey, []) || [];
+    if(S.comp && !compInfo) once("comps/" + S.comp).then(c => { compInfo = c; if(c) $("shComp").innerHTML = '<a class="card" style="display:block;text-decoration:none;color:inherit;padding:.6rem .8rem;margin:0" href="#/c/' + S.comp + '">🏆 <b>' + esc(c.name) + '</b> <span class="muted small">— voir le classement en direct ›</span></a>'; });
+    if(S.arrows && !gear.loaded){ gear.loaded = true; once("gear/" + aid + "/arrows/" + S.arrows).then(x => { gear.arrowSet = x; redraw(); }); }
+    drawAll();
+  });
+  applyZoom();
+}
+/* normalise : l'indicateur X est stocké « X:1 » ; on l'expose en a.x booléen pour l'affichage tout en gardant les coordonnées */
+function normSession(s){
+  s = Object.assign({}, s); s.parts = arr(s.parts);
+  const E = arr(s.ends); s.ends = E.map(e => e ? Object.assign({}, e, { a: arr(e.a).map(a => fixArrow(a)) }) : e);
+  return s;
+}
+function fixArrow(a){ return a; }
+/* Le libellé X : on lit a.X (indicateur) */
+function isX(a){ return !!(a && a.X); }
+
+/* ================= Statistiques ================= */
+function viewStats(v, aid){
+  if(!aid){ v.appendChild(h('<div class="card"><h2>Statistiques</h2><p class="muted">Connectez-vous ou choisissez un archer à l\'accueil.</p><button class="btn pri" id="sLogin">Se connecter</button></div>')); $("sLogin").onclick = loginDialog; return; }
+  let period = LS.get("sg_period", 90), distF = "";
+  v.appendChild(h('<div class="card"><h2 id="stTitle">Statistiques</h2><div class="seg" id="stPer"><button data-p="30">30 j</button><button data-p="90">90 j</button><button data-p="365">1 an</button><button data-p="0">Tout</button></div><label class="f">Distance / blason</label><select class="in" id="stDist"></select></div>'));
+  v.appendChild(h('<div class="hero" id="stHero"></div>'));
+  v.appendChild(h('<div class="card"><h2>Progression (moyenne par flèche)</h2><div class="chart" id="stChart"></div></div>'));
+  v.appendChild(h('<div class="card"><h2>Toutes les flèches</h2><p class="small muted" style="margin-top:-.3rem">Nuage des impacts sur la période, avec le centre et l\'étendue du groupement.</p><svg class="mini-tgt" id="stTgt" viewBox="-1.1 -1.1 2.2 2.2"></svg><div id="stAdvice"></div></div>'));
+  v.appendChild(h('<div class="card"><h2>Records</h2><ul class="list" id="stRec"></ul></div>'));
+  let S = {};
+  function draw(){
+    $("stTitle").textContent = "Statistiques" + (archers[aid] ? " — " + archers[aid].name : "");
+    $("stPer").querySelectorAll("button").forEach(b => b.classList.toggle("on", Number(b.dataset.p) === period));
+    const lim = period ? Date.now() - period * 864e5 : 0;
+    const ids = Object.keys(S).filter(k => S[k] && (S[k].t || 0) >= lim).sort((a, b) => (S[a].t || 0) - (S[b].t || 0));
+    // clés distance/blason
+    const keys = {}; ids.forEach(k => arr(S[k].parts).forEach(p => { const key = (p.d || 0) + "|" + p.face + "|" + p.size; keys[key] = (p.d ? p.d + " m · " : "") + FACES[p.face].name + " " + p.size + " cm"; }));
+    const ks = Object.keys(keys).sort();
+    if(distF && !keys[distF]) distF = ""; if(!distF && ks.length) distF = ks[ks.length - 1];
+    $("stDist").innerHTML = ks.length ? ks.map(k => '<option value="' + k + '"' + (k === distF ? " selected" : "") + '>' + esc(keys[k]) + '</option>').join("") : '<option>—</option>';
+    const [fd, ff, fs] = distF.split("|"); const A = [], pts = [];
+    ids.forEach(k => { const s = S[k], P = arr(s.parts); let t = 0, n = 0;
+      arr(s.ends).forEach(e => { if(!e) return; const p = P[e.part || 0]; if(!p || String(p.d || 0) !== fd || p.face !== ff || String(p.size) !== fs) return; arr(e.a).forEach(a => { if(!a) return; A.push(a); t += arrowVal(a); n++; }); });
+      if(n) pts.push({ d: s.date, avg: t / n, n: n, tot: t, id: k, s: s }); });
+    const nA = A.length, tot = A.reduce((t, a) => t + arrowVal(a), 0), g = grouping(A, ff || "wa10", Number(fs) || 122);
+    $("stHero").innerHTML = [[ids.length, "Séances"], [nA, "Flèches"], [nA ? dec(tot / nA) : "—", "Moy./flèche"], [nA ? Math.round(A.filter(a => a.s >= 10 || (ff === "field" && a.s >= 6)).length / nA * 100) + " %" : "—", "Dans le 10"], [g ? dec(g.cmRad, 1) + " cm" : "—", "Rayon groupement"], [A.filter(isX).length, "X"]].map(x => '<div class="kpi"><b>' + x[0] + '</b><span>' + x[1] + '</span></div>').join("");
+    $("stChart").innerHTML = lineChart(pts.map(p => ({ l: fmtShort(p.d), v: p.avg })), maxScore(ff || "wa10"));
+    // nuage
+    const face = ff || "wa10"; let dots = "";
+    A.forEach(a => { if(a.k || a.x == null) return; const q = toView(face, a); dots += '<circle cx="' + q.x + '" cy="' + q.y + '" r=".014" fill="rgba(57,255,136,.45)"/>'; });
+    let ell = ""; if(g && g.n >= 4){ const sp = spotCenters(face), c = sp.length === 1 ? sp[0] : sp[1]; ell = '<ellipse cx="' + (c.x + g.mx * c.k) + '" cy="' + (c.y + g.my * c.k) + '" rx="' + g.sx * 2 * c.k + '" ry="' + g.sy * 2 * c.k + '" fill="rgba(0,229,255,.12)" stroke="#00E5FF" stroke-width=".008" stroke-dasharray=".03 .02"/><circle cx="' + (c.x + g.mx * c.k) + '" cy="' + (c.y + g.my * c.k) + '" r=".016" fill="#00E5FF"/>'; }
+    $("stTgt").innerHTML = faceSVG(face) + dots + ell;
+    $("stAdvice").innerHTML = g ? '<div class="advice">' + sightAdvice(g) + '</div>' : '<p class="empty">Pas encore assez de flèches placées sur la cible.</p>';
+    // records
+    const best = pts.slice().sort((a, b) => b.tot - a.tot)[0], bestAvg = pts.filter(p => p.n >= 12).sort((a, b) => b.avg - a.avg)[0];
+    let bestEnd = null; ids.forEach(k => arr(S[k].ends).forEach((e, i) => { if(!e) return; const p = arr(S[k].parts)[e.part || 0]; if(!p || String(p.d || 0) !== fd || p.face !== ff) return; const t = arr(e.a).reduce((u, a) => u + arrowVal(a), 0); if(!bestEnd || t > bestEnd.t) bestEnd = { t: t, k: k, i: i, n: arr(e.a).length }; }));
+    $("stRec").innerHTML = [best ? rec("🥇 Meilleur pointage", best.tot + " (" + best.n + " flèches)", best.id, fmtShort(best.d)) : "", bestAvg ? rec("📊 Meilleure moyenne (12 flèches et +)", dec(bestAvg.avg), bestAvg.id, fmtShort(bestAvg.d)) : "", bestEnd ? rec("🔥 Meilleure volée", bestEnd.t + " sur " + bestEnd.n + " flèches", bestEnd.k, "volée " + (bestEnd.i + 1)) : ""].join("") || '<li class="empty">Aucun record pour l\'instant.</li>';
+    $("stRec").querySelectorAll("[data-s]").forEach(li => li.onclick = () => location.hash = "#/s/" + aid + "/" + li.dataset.s);
+  }
+  const rec = (t, val, sid, sub2) => '<li class="item click" data-s="' + sid + '"><div class="main"><b>' + t + '</b><small>' + esc(sub2) + '</small></div><div class="score">' + val + '</div></li>';
+  $("stPer").querySelectorAll("button").forEach(b => b.onclick = () => { period = Number(b.dataset.p); LS.set("sg_period", period); draw(); });
+  $("stDist").onchange = () => { distF = $("stDist").value; draw(); };
+  sub("sessions/" + aid, val => { S = {}; const o = obj(val); Object.keys(o).forEach(k => { if(o[k]) S[k] = normSession(o[k]); }); draw(); });
+}
+function lineChart(P, max){
+  if(P.length < 2) return '<p class="empty">Il faut au moins 2 séances pour tracer la progression.</p>';
+  const W = 600, H = 220, L = 34, B = 26, T = 10, R = 10, ys = P.map(p => p.v), lo = Math.max(0, Math.floor(Math.min.apply(null, ys) - 0.5)), hi = Math.min(max, Math.ceil(Math.max.apply(null, ys) + 0.5));
+  const X = i => L + (W - L - R) * (P.length === 1 ? 0.5 : i / (P.length - 1)), Y = v => T + (H - T - B) * (1 - (v - lo) / Math.max(0.5, hi - lo));
+  let g = ""; for(let v = lo; v <= hi; v++){ g += '<line x1="' + L + '" x2="' + (W - R) + '" y1="' + Y(v) + '" y2="' + Y(v) + '" stroke="var(--line)"/><text x="' + (L - 6) + '" y="' + (Y(v) + 4) + '" text-anchor="end" font-size="11" fill="var(--muted)">' + v + '</text>'; }
+  // moyenne mobile (5 séances)
+  const mm = P.map((p, i) => { const w = P.slice(Math.max(0, i - 4), i + 1); return w.reduce((t, q) => t + q.v, 0) / w.length; });
+  const path = P.map((p, i) => (i ? "L" : "M") + X(i) + " " + Y(p.v)).join(""), path2 = mm.map((v, i) => (i ? "L" : "M") + X(i) + " " + Y(v)).join("");
+  const step = Math.max(1, Math.ceil(P.length / 6));
+  const lbl = P.map((p, i) => i % step === 0 || i === P.length - 1 ? '<text x="' + X(i) + '" y="' + (H - 6) + '" text-anchor="middle" font-size="11" fill="var(--muted)">' + esc(p.l) + '</text>' : "").join("");
+  return '<svg viewBox="0 0 ' + W + ' ' + H + '">' + g + '<path d="' + path + '" fill="none" stroke="var(--blue)" stroke-width="2" opacity=".55"/>' + P.map((p, i) => '<circle cx="' + X(i) + '" cy="' + Y(p.v) + '" r="3.5" fill="var(--blue)"><title>' + esc(p.l) + " : " + dec(p.v) + '</title></circle>').join("") + '<path d="' + path2 + '" fill="none" stroke="var(--accent)" stroke-width="3"/>' + lbl + '</svg><p class="small muted" style="margin:.2rem 0 0"><span style="color:var(--blue)">●</span> chaque séance · <span style="color:var(--accent)">━</span> tendance (5 dernières)</p>';
+}
+
+/* ================= Matériel ================= */
+function viewGear(v){
+  if(!me){ v.appendChild(h('<div class="card"><h2>Matériel</h2><p class="muted">Connectez-vous pour gérer vos arcs, flèches et repères de visée.</p><button class="btn pri" id="gLogin">Se connecter</button></div>')); $("gLogin").onclick = loginDialog; return; }
+  v.appendChild(h('<div class="card"><h2>Mes arcs</h2><ul class="list" id="gBows"></ul><button class="btn sm" id="gAddBow" style="margin-top:.5rem">+ Ajouter un arc</button></div>'));
+  v.appendChild(h('<div class="card"><h2>Mes flèches</h2><ul class="list" id="gArr"></ul><button class="btn sm" id="gAddArr" style="margin-top:.5rem">+ Ajouter un jeu de flèches</button></div>'));
+  v.appendChild(h('<div class="card"><h2>Mon profil</h2><div id="gProf"></div></div>'));
+  let G = {};
+  const base = "gear/" + me.id;
+  function bowDlg(id){
+    const b = Object.assign({ name: "", type: (archers[me.id] || {}).bow || "R", lbs: "", draw: "", brace: "", tiller: "", notes: "", sight: {} }, obj(obj(G.bows)[id]));
+    const sm = Object.keys(obj(b.sight)).map(Number).sort((x, y) => x - y);
+    dialog('<h2>' + (id ? "Modifier l'arc" : "Nouvel arc") + '</h2><label class="f">Nom</label><input class="in" id="bN" maxlength="30" value="' + esc(b.name) + '" placeholder="Ex. : Hoyt Xceed 68 po">' +
+      '<label class="f">Type</label><select class="in" id="bT">' + Object.keys(BOW_TYPES).map(k => '<option value="' + k + '"' + (k === b.type ? " selected" : "") + '>' + BOW_TYPES[k] + '</option>').join("") + '</select>' +
+      '<div class="grid2"><div><label class="f">Puissance (lb)</label><input class="in" id="bL" inputmode="decimal" value="' + esc(b.lbs) + '"></div><div><label class="f">Allonge (po)</label><input class="in" id="bD" inputmode="decimal" value="' + esc(b.draw) + '"></div>' +
+      '<div><label class="f">Band (po)</label><input class="in" id="bB" inputmode="decimal" value="' + esc(b.brace) + '"></div><div><label class="f">Tiller (mm)</label><input class="in" id="bTi" inputmode="decimal" value="' + esc(b.tiller) + '"></div></div>' +
+      '<label class="f">Repères de visée</label><table class="sight-tbl" id="bS">' + (sm.length ? sm : [18, 30, 50, 70]).map(d => sightRow(d, obj(b.sight)[d] || "")).join("") + '</table><button class="btn sm" id="bSAdd" style="margin-top:.3rem">+ Distance</button>' +
+      '<label class="f">Notes</label><textarea class="in" id="bNo" rows="2" maxlength="300">' + esc(b.notes) + '</textarea>' +
+      '<div class="acts">' + (id ? '<button class="btn danger" id="bDel">Supprimer</button>' : '<button class="btn" data-close>Annuler</button>') + '<button class="btn pri" id="bOk">Enregistrer</button></div>',
+    bx => {
+      bx.querySelector("#bSAdd").onclick = () => bx.querySelector("#bS").insertAdjacentHTML("beforeend", sightRow("", ""));
+      const del = bx.querySelector("#bDel"); if(del) del.onclick = () => { put(base + "/bows/" + id, null); $("dlg").close(); };
+      bx.querySelector("#bOk").onclick = () => {
+        const name = bx.querySelector("#bN").value.trim(); if(!name){ toast("Donnez un nom à l'arc."); return; }
+        const sight = {}; bx.querySelectorAll("#bS tr").forEach(tr => { const d = Number(tr.querySelector(".sd").value), m = tr.querySelector(".sm").value.trim(); if(d > 0 && m) sight[d] = m; });
+        put(base + "/bows/" + (id || uid()), { name: name, type: bx.querySelector("#bT").value, lbs: bx.querySelector("#bL").value.trim(), draw: bx.querySelector("#bD").value.trim(), brace: bx.querySelector("#bB").value.trim(), tiller: bx.querySelector("#bTi").value.trim(), notes: bx.querySelector("#bNo").value.trim(), sight: sight });
+        $("dlg").close(); toast("Arc enregistré.");
+      };
+    });
+  }
+  const sightRow = (d, m) => '<tr><td><input class="in sd" inputmode="numeric" value="' + esc(d) + '" placeholder="m" style="width:4.5rem"></td><td>m</td><td><input class="in sm" value="' + esc(m) + '" placeholder="Repère (ex. 4,5 / 12)"></td></tr>';
+  function arrDlg(id){
+    const a = Object.assign({ name: "", count: 12, numbered: true, spine: "", length: "", point: "", diam: "", notes: "" }, obj(obj(G.arrows)[id]));
+    dialog('<h2>' + (id ? "Modifier les flèches" : "Nouveau jeu de flèches") + '</h2><label class="f">Nom</label><input class="in" id="aN" maxlength="30" value="' + esc(a.name) + '" placeholder="Ex. : X10 450">' +
+      '<div class="grid2"><div><label class="f">Nombre</label><input class="in" id="aC" type="number" min="1" max="24" value="' + esc(a.count) + '"></div><div><label class="f">Spine</label><input class="in" id="aS" value="' + esc(a.spine) + '"></div>' +
+      '<div><label class="f">Longueur (po)</label><input class="in" id="aL" inputmode="decimal" value="' + esc(a.length) + '"></div><div><label class="f">Pointe (gr)</label><input class="in" id="aP" inputmode="numeric" value="' + esc(a.point) + '"></div></div>' +
+      '<label class="row" style="margin-top:.8rem"><input type="checkbox" id="aNum"' + (a.numbered ? " checked" : "") + '> Flèches numérotées (analyse par flèche)</label>' +
+      '<label class="f">Notes</label><textarea class="in" id="aNo" rows="2" maxlength="300">' + esc(a.notes) + '</textarea>' +
+      '<div class="acts">' + (id ? '<button class="btn danger" id="aDel">Supprimer</button>' : '<button class="btn" data-close>Annuler</button>') + '<button class="btn pri" id="aOk">Enregistrer</button></div>',
+    bx => {
+      const del = bx.querySelector("#aDel"); if(del) del.onclick = () => { put(base + "/arrows/" + id, null); $("dlg").close(); };
+      bx.querySelector("#aOk").onclick = () => { const name = bx.querySelector("#aN").value.trim(); if(!name){ toast("Donnez un nom au jeu de flèches."); return; }
+        put(base + "/arrows/" + (id || uid()), { name: name, count: Math.max(1, Math.min(24, Number(bx.querySelector("#aC").value) || 12)), numbered: bx.querySelector("#aNum").checked, spine: bx.querySelector("#aS").value.trim(), length: bx.querySelector("#aL").value.trim(), point: bx.querySelector("#aP").value.trim(), notes: bx.querySelector("#aNo").value.trim() });
+        $("dlg").close(); toast("Flèches enregistrées."); };
+    });
+  }
+  $("gAddBow").onclick = () => bowDlg(null); $("gAddArr").onclick = () => arrDlg(null);
+  sub(base, val => {
+    G = obj(val); const B = obj(G.bows), R = obj(G.arrows);
+    $("gBows").innerHTML = Object.keys(B).length ? Object.keys(B).map(k => '<li class="item click" data-b="' + k + '"><div class="main"><b>🏹 ' + esc(B[k].name) + '</b><small>' + esc([BOW_TYPES[B[k].type], B[k].lbs ? B[k].lbs + " lb" : "", Object.keys(obj(B[k].sight)).length ? Object.keys(obj(B[k].sight)).sort((x, y) => x - y).map(d => d + " m : " + B[k].sight[d]).join(" · ") : ""].filter(Boolean).join(" · ")) + '</small></div><span class="muted">›</span></li>').join("") : '<li class="empty">Aucun arc. Ajoutez-en un pour noter vos repères de visée.</li>';
+    $("gArr").innerHTML = Object.keys(R).length ? Object.keys(R).map(k => '<li class="item click" data-r="' + k + '"><div class="main"><b>➶ ' + esc(R[k].name) + '</b><small>' + esc([R[k].count + " flèches" + (R[k].numbered ? " numérotées" : ""), R[k].spine ? "spine " + R[k].spine : "", R[k].point ? R[k].point + " gr" : ""].filter(Boolean).join(" · ")) + '</small></div><span class="muted">›</span></li>').join("") : '<li class="empty">Aucun jeu de flèches.</li>';
+    $("gBows").querySelectorAll("[data-b]").forEach(li => li.onclick = () => bowDlg(li.dataset.b));
+    $("gArr").querySelectorAll("[data-r]").forEach(li => li.onclick = () => arrDlg(li.dataset.r));
+  });
+  const prof = () => { const a = archers[me.id] || {}; $("gProf").innerHTML = '<label class="f">Nom</label><input class="in" id="pN" maxlength="40" value="' + esc(a.name || me.name) + '"><label class="f">Club</label><input class="in" id="pC" maxlength="40" value="' + esc(a.club || "") + '"><label class="f">Type d\'arc principal</label><select class="in" id="pB">' + Object.keys(BOW_TYPES).map(k => '<option value="' + k + '"' + (k === a.bow ? " selected" : "") + '>' + BOW_TYPES[k] + '</option>').join("") + '</select><label class="f">Nouveau NIP (laisser vide pour garder)</label><input class="in" id="pP" inputmode="numeric" maxlength="4"><button class="btn sm" id="pOk" style="margin-top:.7rem">💾 Enregistrer le profil</button>';
+    $("pOk").onclick = () => { const n = $("pN").value.trim(); if(n.length < 2) return toast("Nom trop court."); const pin = $("pP").value.trim(); if(pin && !/^\d{4}$/.test(pin)) return toast("Le NIP doit avoir 4 chiffres.");
+      put("archers/" + me.id + "/name", n); put("archers/" + me.id + "/club", $("pC").value.trim()); put("archers/" + me.id + "/bow", $("pB").value); if(pin) put("archers/" + me.id + "/pin", pin); setMe({ id: me.id, name: n }); toast("Profil enregistré."); }; };
+  once("archers/" + me.id).then(a => { archers[me.id] = a || archers[me.id]; prof(); });
+}
+
+/* ================= Compétitions ================= */
+function viewComps(v){
+  v.appendChild(h('<div class="card"><h2>Compétitions</h2><p class="muted small" style="margin-top:-.3rem">Chaque archer pointe ses volées sur son téléphone ; le classement se met à jour en direct pour tout le monde.</p><button class="btn pri" id="cNew">+ Créer une compétition</button></div>'));
+  v.appendChild(h('<div class="card"><h2>À venir et en cours</h2><ul class="list" id="cUp"></ul></div>'));
+  v.appendChild(h('<div class="card"><h2>Passées</h2><ul class="list" id="cPast"></ul></div>'));
+  $("cNew").onclick = () => { if(needMe()) compDlg(null); };
+  sub("comps", val => {
+    const C = obj(val), t = today(), ids = Object.keys(C).filter(k => C[k] && C[k].name);
+    const item = k => { const c = C[k], n = Object.keys(obj(c.archers)).length; return '<li class="item click" data-c="' + k + '"><div class="main"><b>🏆 ' + esc(c.name) + '</b><small>' + fmtDate(c.date) + (c.place ? " · " + esc(c.place) : "") + " · " + esc(roundById(c.round).name) + " · " + n + " archer" + (n > 1 ? "s" : "") + '</small></div>' + (c.date === t ? '<span class="tag live">EN DIRECT</span>' : "") + '</li>'; };
+    const up = ids.filter(k => C[k].date >= t).sort((a, b) => C[a].date.localeCompare(C[b].date)), past = ids.filter(k => C[k].date < t).sort((a, b) => C[b].date.localeCompare(C[a].date));
+    $("cUp").innerHTML = up.map(item).join("") || '<li class="empty">Aucune compétition à venir.</li>';
+    $("cPast").innerHTML = past.slice(0, 30).map(item).join("") || '<li class="empty">Aucune.</li>';
+    v.querySelectorAll("[data-c]").forEach(li => li.onclick = () => location.hash = "#/c/" + li.dataset.c);
+  });
+}
+function compDlg(id, c0){
+  const c = Object.assign({ name: "", date: today(), place: "", round: "wa18", divisions: "R,C,B" }, obj(c0));
+  dialog('<h2>' + (id ? "Modifier la compétition" : "Nouvelle compétition") + '</h2><label class="f">Nom</label><input class="in" id="cN" maxlength="50" value="' + esc(c.name) + '" placeholder="Ex. : Championnat régional en salle">' +
+    '<div class="grid2"><div><label class="f">Date</label><input class="in" id="cD" type="date" value="' + esc(c.date) + '"></div><div><label class="f">Lieu</label><input class="in" id="cP" maxlength="40" value="' + esc(c.place) + '"></div></div>' +
+    '<label class="f">Ronde</label><select class="in" id="cR">' + ROUNDS.filter(r => !r.free).map(r => '<option value="' + r.id + '"' + (r.id === c.round ? " selected" : "") + '>' + esc(r.name) + ' — ' + esc(r.desc) + '</option>').join("") + '</select>' +
+    '<label class="f">Divisions</label><div class="chips" id="cDiv">' + Object.keys(BOW_TYPES).map(k => '<button type="button" class="chip' + (String(c.divisions).split(",").indexOf(k) >= 0 ? " on" : "") + '" data-k="' + k + '">' + BOW_TYPES[k] + '</button>').join("") + '</div>' +
+    '<div class="acts">' + (id ? '<button class="btn danger" id="cDel">Supprimer</button>' : '<button class="btn" data-close>Annuler</button>') + '<button class="btn pri" id="cOk">Enregistrer</button></div>',
+  b => {
+    b.querySelectorAll("#cDiv .chip").forEach(x => x.onclick = () => x.classList.toggle("on"));
+    const del = b.querySelector("#cDel"); if(del) del.onclick = () => confirmBox("Supprimer la compétition « " + c.name + " » ? Les séances des archers sont conservées.", "Supprimer").then(ok => { if(ok){ put("comps/" + id, null); location.hash = "#/comps"; } });
+    b.querySelector("#cOk").onclick = () => {
+      const name = b.querySelector("#cN").value.trim(); if(!name){ toast("Donnez un nom."); return; }
+      const divs = Array.from(b.querySelectorAll("#cDiv .chip.on")).map(x => x.dataset.k); if(!divs.length){ toast("Choisissez au moins une division."); return; }
+      const nid = id || uid(), base = "comps/" + nid + "/";
+      const data = { name: name, date: b.querySelector("#cD").value || today(), place: b.querySelector("#cP").value.trim(), round: b.querySelector("#cR").value, divisions: divs.join(","), owner: (c0 && c0.owner) || me.id };
+      Object.keys(data).forEach(k => put(base + k, data[k]));
+      $("dlg").close(); toast("Compétition enregistrée."); if(!id) location.hash = "#/c/" + nid;
+    };
+  });
+}
+function viewComp(v, cid){
+  let C = null, divF = LS.get("sg_divF", "");
+  v.appendChild(h('<div class="card"><div class="row"><div class="grow"><h2 id="cTitle" style="margin:0">Compétition</h2><div class="muted small" id="cSub"></div></div><button class="btn sm" id="cEdit" hidden>✏️</button></div><div class="row" id="cActs" style="margin-top:.7rem"></div></div>'));
+  v.appendChild(h('<div class="card"><div class="row" style="margin-bottom:.4rem"><h2 class="grow" style="margin:0">Classement <span class="tag live" id="cLive" hidden>EN DIRECT</span></h2><button class="btn sm no-print" id="cShare">🔗 Partager</button></div><div class="seg" id="cDivSeg" style="margin-bottom:.5rem"></div><div style="overflow-x:auto"><table class="lb" id="cLb"></table></div><p class="small muted" style="margin:.5rem 0 0">Égalité : départage aux X, puis aux 10.</p></div>'));
+  $("cShare").onclick = () => { const url = location.origin + location.pathname + "#/c/" + cid; if(navigator.share) navigator.share({ title: C ? C.name : "Compétition", url: url }).catch(() => {}); else { try{ navigator.clipboard.writeText(url); toast("Lien copié."); }catch(e){ prompt("Lien :", url); } } };
+  function draw(){
+    if(!C){ $("cTitle").textContent = "Compétition introuvable"; return; }
+    const r = roundById(C.round), A = obj(C.archers), R = obj(C.results), t = today();
+    $("cTitle").textContent = "🏆 " + C.name;
+    $("cSub").textContent = [fmtDate(C.date), C.place, r.name + " — " + r.desc].filter(Boolean).join(" · ");
+    $("cLive").hidden = C.date !== t;
+    $("cEdit").hidden = !(me && C.owner === me.id); $("cEdit").onclick = () => compDlg(cid, C);
+    const acts = $("cActs"); acts.innerHTML = "";
+    if(me && A[me.id]){
+      const sid = A[me.id].sid;
+      acts.appendChild(h('<a class="btn pri grow" href="#/s/' + me.id + '/' + sid + '">🎯 Pointer mes volées</a>'));
+      const b = h('<button class="btn sm danger">Me retirer</button>'); b.onclick = () => confirmBox("Vous retirer de la compétition ? Votre séance est conservée.", "Me retirer").then(ok => { if(ok){ put("comps/" + cid + "/archers/" + me.id, null); put("comps/" + cid + "/results/" + me.id, null); } }); acts.appendChild(b);
+    } else {
+      const b = h('<button class="btn pri grow">✋ M\'inscrire</button>'); b.onclick = () => { if(needMe()) joinDlg(); }; acts.appendChild(b);
+    }
+    const divs = String(C.divisions || "R").split(",").filter(Boolean);
+    if(divF && divs.indexOf(divF) < 0) divF = "";
+    $("cDivSeg").innerHTML = '<button data-d=""' + (divF === "" ? ' class="on"' : "") + '>Toutes</button>' + divs.map(d => '<button data-d="' + d + '"' + (divF === d ? ' class="on"' : "") + '>' + BOW_TYPES[d].split(" ")[0] + '</button>').join("");
+    $("cDivSeg").hidden = divs.length < 2;
+    $("cDivSeg").querySelectorAll("button").forEach(b => b.onclick = () => { divF = b.dataset.d; LS.set("sg_divF", divF); draw(); });
+    const planned = arr(r.parts).reduce((tt, p) => tt + p.ends, 0), maxS = arr(r.parts).reduce((tt, p) => tt + p.ends * p.ape * maxScore(p.face), 0);
+    const rows = Object.keys(A).filter(k => !divF || A[k].div === divF).map(k => Object.assign({ id: k, name: A[k].name, div: A[k].div, club: A[k].club }, { tot: 0, x: 0, t10: 0, n: 0, ends: [] }, obj(R[k])))
+      .sort((a, b) => b.tot - a.tot || b.x - a.x || b.t10 - a.t10 || a.name.localeCompare(b.name, "fr"));
+    const L = $("cLb");
+    if(!rows.length){ L.innerHTML = '<tr><td class="empty">Aucun archer inscrit' + (divF ? " dans cette division" : "") + '.</td></tr>'; return; }
+    const medal = i => ["🥇", "🥈", "🥉"][i] || (i + 1);
+    L.innerHTML = '<tr><th>#</th><th>Archer</th><th>Volées</th><th>X</th><th>10</th><th>Total</th></tr>' + rows.map((o, i) => {
+      const ends = arr(o.ends), last = ends.length ? ends[ends.length - 1] : null;
+      return '<tr class="' + (me && o.id === me.id ? "me" : "") + '"><td class="rk"><span class="medal">' + (o.n ? medal(i) : "–") + '</span></td><td><b>' + esc(o.name) + '</b><div class="small muted">' + esc([divs.length > 1 && !divF ? BOW_TYPES[o.div].split(" ")[0] : "", o.club].filter(Boolean).join(" · ")) + (last != null ? ' · dernière volée ' + last : "") + '</div></td><td>' + ends.length + '/' + planned + '</td><td>' + (o.x || 0) + '</td><td>' + (o.t10 || 0) + '</td><td class="tt">' + (o.tot || 0) + '<div class="small muted" style="font-weight:600">' + (o.n ? dec(o.tot / o.n) + "/fl." : "") + '</div></td></tr>';
+    }).join("");
+    void maxS;
+  }
+  function joinDlg(){
+    const divs = String(C.divisions || "R").split(","), a = archers[me.id] || {}, def = divs.indexOf(a.bow) >= 0 ? a.bow : divs[0];
+    dialog('<h2>Inscription</h2><p>' + esc(C.name) + '<br><span class="muted small">' + esc(roundById(C.round).desc) + '</span></p><label class="f">Division</label><select class="in" id="jD">' + divs.map(d => '<option value="' + d + '"' + (d === def ? " selected" : "") + '>' + BOW_TYPES[d] + '</option>').join("") + '</select><div class="acts"><button class="btn" data-close>Annuler</button><button class="btn pri" id="jOk">M\'inscrire</button></div>',
+    b => b.querySelector("#jOk").onclick = () => {
+      const r = roundById(C.round), sid = uid(), lg = LS.get("sg_lastGear", {});
+      put("sessions/" + me.id + "/" + sid, { date: C.date, t: Date.now(), round: r.id, title: C.name, place: C.place || "", parts: r.parts, comp: cid, bow: lg.bow || "", arrows: lg.arrows || "" });
+      put("comps/" + cid + "/archers/" + me.id, { name: me.name, div: b.querySelector("#jD").value, club: a.club || "", sid: sid, t: Date.now() });
+      $("dlg").close(); toast("Inscrit ! Bonne compétition.");
+    });
+  }
+  sub("comps/" + cid, val => { C = val; draw(); });
+}
+
+/* ================= Démarrage ================= */
+function boot(){
+  initDB(); renderWho();
+  $("whoBtn").onclick = loginDialog;
+  $("themeBtn").onclick = () => { const t = document.documentElement.getAttribute("data-theme") === "dark" ? "light" : "dark"; document.documentElement.setAttribute("data-theme", t); LS.set("sg_theme", t); try{ localStorage.setItem("sg_theme", t); }catch(e){} $("themeBtn").textContent = t === "dark" ? "☀️" : "🌙"; };
+  $("themeBtn").textContent = document.documentElement.getAttribute("data-theme") === "dark" ? "☀️" : "🌙";
+  if(DB){ try{ DB.ref(".info/connected").on("value", s => { online = !!s.val(); $("netDot").classList.toggle("on", online); $("netDot").title = online ? "En ligne" : "Hors ligne — les tirs seront envoyés au retour du réseau"; }); }catch(e){} }
+  window.addEventListener("hashchange", route);
+  route();
+  if("serviceWorker" in navigator && location.protocol === "https:" && !window.__DB) navigator.serviceWorker.register("sw.js").catch(() => {});
+}
+if(document.readyState === "loading") document.addEventListener("DOMContentLoaded", boot); else boot();
+})();
+
+</script>
+</body>
+</html>

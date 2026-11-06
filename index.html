@@ -1,7 +1,7 @@
 <!doctype html>
 <html lang="fr" data-theme="dark">
 <head>
-<meta name="build" content="202611060904">
+<meta name="build" content="202611060910">
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover,user-scalable=no">
 <title>Sagittaire</title>
@@ -171,6 +171,8 @@ dialog::backdrop{background:rgba(5,10,20,.6)}
 .chip{padding:.3rem .65rem;border-radius:999px;background:var(--chip);font-size:.8rem;font-weight:650;border:1px solid transparent}
 .chip.on{border-color:var(--accent);color:var(--accent)}
 @media (min-width:700px){.hero{grid-template-columns:repeat(4,1fr)}}
+.foot{text-align:center;margin:1.2rem 0 .4rem}
+.foot a{color:var(--muted);font-size:.85rem;text-decoration:none;border:1px solid var(--line);border-radius:999px;padding:.4rem .9rem;display:inline-block}
 @media print{.nav,.top .icon-btn,.no-print{display:none !important}.wrap{padding-bottom:0}}
 </style>
 </head>
@@ -185,6 +187,7 @@ dialog::backdrop{background:rgba(5,10,20,.6)}
     <button class="icon-btn" id="themeBtn" type="button" aria-label="Mode clair / sombre">☀️</button>
   </header>
   <main id="view"></main>
+  <footer class="foot no-print"><a href="#/admin" id="footAdmin">🛠 Administration</a></footer>
 </div>
 <nav class="nav" id="nav">
   <a href="#/" data-nav="home"><i>🏠</i>Accueil</a>
@@ -197,7 +200,7 @@ dialog::backdrop{background:rgba(5,10,20,.6)}
 <script>
 (function(){
 "use strict";
-var BUILD = "202611060904";
+var BUILD = "202611060910";
 /* ================= Utilitaires ================= */
 const $ = id => document.getElementById(id);
 const esc = s => String(s == null ? "" : s).replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
@@ -1099,7 +1102,7 @@ function adminLogin(){
     b.querySelector("#adOk").onclick = go; b.querySelector("#adP").onkeydown = e => { if(e.key === "Enter" && !first) go(); }; });
 }
 function viewAdmin(v){
-  if(!isAdmin()){ v.appendChild(h('<div class="card"><h2>Administration</h2><p class="muted">Réservé à l\'administrateur.</p><button class="btn pri" id="adIn">🛠 Accès administrateur</button></div>')); $("adIn").onclick = adminLogin; return; }
+  if(!isAdmin()){ v.appendChild(h('<div class="card"><h2>🛠 Administration</h2><p class="muted">Réservé à l\'administrateur du club. ' + (CFG.adminPwd ? "Entrez le mot de passe administrateur." : "Aucun mot de passe n\'existe encore : le premier qui entre le choisit.") + '</p><button class="btn pri" id="adIn">' + (CFG.adminPwd ? "Entrer le mot de passe" : "Créer le mot de passe administrateur") + '</button></div>')); $("adIn").onclick = adminLogin; return; }
   const tabs = [["places", "📍 Lieux"], ["rounds", "🎯 Rondes"], ["courses", "🦌 Parcours 3D"], ["archers", "👤 Archers"], ["other", "⚙️ Autres"]];
   let tab = LS.get("sg_admTab", "places");
   v.appendChild(h('<div class="card"><div class="row"><h2 class="grow" style="margin:0">🛠 Administration</h2><button class="btn sm" id="admOut">Quitter</button></div><div class="chips" id="admTabs" style="margin-top:.6rem"></div></div>'));
@@ -1212,14 +1215,19 @@ function courseDlg(id){
 }
 function admArchers(B){
   const L = Object.keys(archers).filter(k => archers[k] && archers[k].name).sort((a, b) => archers[a].name.localeCompare(archers[b].name, "fr"));
-  B.appendChild(h('<div class="card"><h2>Archers (' + L.length + ')</h2><ul class="list">' + (L.map(k => '<li class="item click" data-a="' + k + '"><div class="main"><b>' + esc(archers[k].name) + '</b><small>' + esc([archers[k].club, BOW_TYPES[archers[k].bow]].filter(Boolean).join(" · ")) + '</small></div><span class="muted">›</span></li>').join("") || '<li class="empty">Aucun archer.</li>') + '</ul></div>'));
+  B.appendChild(h('<div class="card"><h2>Archers (' + L.length + ')</h2><p class="small muted" style="margin-top:-.3rem">Touchez un archer pour le modifier ou lui donner un nouveau NIP ; 🗑 supprime son compte.</p><ul class="list">' + (L.map(k => '<li class="item click" data-a="' + k + '"><div class="main"><b>' + esc(archers[k].name) + '</b><small>' + esc([archers[k].club, BOW_TYPES[archers[k].bow]].filter(Boolean).join(" · ")) + '</small></div><button class="btn sm danger" data-del="' + k + '" aria-label="Supprimer">🗑</button></li>').join("") || '<li class="empty">Aucun archer.</li>') + '</ul></div>'));
+  const delArcher = id => { const a = archers[id]; if(!a) return; confirmBox("Supprimer le compte de " + a.name + " avec toutes ses séances et son matériel ? C'est définitif.", "Supprimer").then(ok => { if(!ok) return;
+    put("archers/" + id, null); put("sessions/" + id, null); put("gear/" + id, null);
+    once("comps").then(C => Object.keys(obj(C)).forEach(c => { if(obj(C[c].archers)[id]){ put("comps/" + c + "/archers/" + id, null); put("comps/" + c + "/results/" + id, null); } }));
+    if(me && me.id === id) setMe(null); toast("Compte supprimé."); }); };
+  B.querySelectorAll("[data-del]").forEach(x => x.onclick = e => { e.stopPropagation(); delArcher(x.dataset.del); });
   B.querySelectorAll("[data-a]").forEach(li => li.onclick = () => { const id = li.dataset.a, a = archers[id];
     dialog('<h2>' + esc(a.name) + '</h2><label class="f">Nom</label><input class="in" id="xN" maxlength="40" value="' + esc(a.name) + '"><label class="f">Club</label><input class="in" id="xC" maxlength="40" value="' + esc(a.club || "") + '"><label class="f">Type d\'arc</label><select class="in" id="xB">' + Object.keys(BOW_TYPES).map(k => '<option value="' + k + '"' + (k === a.bow ? " selected" : "") + '>' + BOW_TYPES[k] + '</option>').join("") + '</select>' +
       '<label class="f">Nouveau NIP (oubli)</label><input class="in" id="xP" inputmode="numeric" maxlength="4" placeholder="Laisser vide pour garder">' +
       '<div class="row" style="margin-top:.6rem"><a class="btn sm" href="#/a/' + id + '" id="xSee">Voir ses séances</a></div>' +
       '<div class="acts"><button class="btn danger" id="xDel">Supprimer</button><button class="btn pri" id="xOk">Enregistrer</button></div>',
     b => { b.querySelector("#xSee").onclick = () => $("dlg").close();
-      b.querySelector("#xDel").onclick = () => confirmBox("Supprimer " + a.name + " avec toutes ses séances et son matériel ?", "Supprimer").then(ok => { if(ok){ put("archers/" + id, null); put("sessions/" + id, null); put("gear/" + id, null); toast("Archer supprimé."); } });
+      b.querySelector("#xDel").onclick = () => { $("dlg").close(); setTimeout(() => delArcher(id), 50); };
       b.querySelector("#xOk").onclick = () => { const n = b.querySelector("#xN").value.trim(), pin = b.querySelector("#xP").value.trim(); if(n.length < 2) return toast("Nom trop court."); if(pin && !/^\d{4}$/.test(pin)) return toast("Le NIP doit avoir 4 chiffres.");
         put("archers/" + id + "/name", n); put("archers/" + id + "/club", b.querySelector("#xC").value.trim()); put("archers/" + id + "/bow", b.querySelector("#xB").value); if(pin) put("archers/" + id + "/pin", pin); $("dlg").close(); toast("Enregistré."); }; }); });
 }

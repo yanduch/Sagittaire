@@ -1,7 +1,7 @@
 <!doctype html>
 <html lang="fr" data-theme="dark">
 <head>
-<meta name="build" content="202611060910">
+<meta name="build" content="202611060918">
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover,user-scalable=no">
 <title>Sagittaire</title>
@@ -200,7 +200,7 @@ dialog::backdrop{background:rgba(5,10,20,.6)}
 <script>
 (function(){
 "use strict";
-var BUILD = "202611060910";
+var BUILD = "202611060918";
 /* ================= Utilitaires ================= */
 const $ = id => document.getElementById(id);
 const esc = s => String(s == null ? "" : s).replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
@@ -1137,24 +1137,28 @@ function admPlaces(B){
 }
 function admRounds(B){
   const L = allRounds(true);
-  B.appendChild(h('<div class="card"><h2>Rondes et séances</h2><p class="small muted" style="margin-top:-.3rem">Modifiez, cachez ou ajoutez des rondes. Les séances déjà tirées gardent leur format.</p><ul class="list">' +
-    L.map(r => '<li class="item click" data-r="' + r.id + '"><div class="main"><b>' + (r.hidden ? "🙈 " : "") + esc(r.name) + (r.builtin ? "" : ' <span class="tag gold">perso</span>') + '</b><small>' + esc(r.desc || "") + '</small></div><span class="muted">›</span></li>').join("") +
+  B.appendChild(h('<div class="card"><h2>Rondes et séances</h2><p class="small muted" style="margin-top:-.3rem">Modifiez, cachez ou ajoutez des rondes ; ⧉ duplique une ronde pour en faire une nouvelle sans tout refaire. Les séances déjà tirées gardent leur format.</p><ul class="list">' +
+    L.map(r => '<li class="item click" data-r="' + r.id + '"><div class="main"><b>' + (r.hidden ? "🙈 " : "") + esc(r.name) + (r.builtin ? "" : ' <span class="tag gold">perso</span>') + '</b><small>' + esc(r.desc || "") + '</small></div><button class="btn sm" data-dup="' + r.id + '" title="Dupliquer">⧉</button></li>').join("") +
     '</ul><button class="btn sm" id="rAdd" style="margin-top:.5rem">+ Nouvelle ronde</button></div>'));
   B.querySelectorAll("[data-r]").forEach(li => li.onclick = () => roundDlg(li.dataset.r));
+  B.querySelectorAll("[data-dup]").forEach(x => x.onclick = e => { e.stopPropagation(); roundDlg(null, x.dataset.dup); });
   $("rAdd").onclick = () => roundDlg(null);
 }
-function roundDlg(id){
-  const r0 = id ? roundById(id) : { name: "", desc: "", parts: [{ d: 18, face: "wa10", size: 40, ape: 3, ends: 10 }] }, builtin = id && ROUNDS.some(r => r.id === id);
+function roundDlg(id, copyFrom){
+  let r0 = id ? roundById(id) : { name: "", desc: "", parts: [{ d: 18, face: "wa10", size: 40, ape: 3, ends: 10 }] }; const builtin = id && ROUNDS.some(r => r.id === id);
+  if(copyFrom){ const c = roundById(copyFrom); r0 = { name: (c.name + " (copie)").slice(0, 40), desc: c.desc || "", parts: arr(c.parts).map(p => Object.assign({}, p)) }; }
   const partRow = p => '<div class="card rd-part" style="padding:.5rem;margin:.4rem 0;box-shadow:none"><div class="grid2"><div><label class="f" style="margin-top:0">Distance (m)</label><input class="in rd-d" type="number" min="0" max="150" value="' + esc(p.d) + '"></div><div><label class="f" style="margin-top:0">Volées (0 = illimité)</label><input class="in rd-e" type="number" min="0" max="60" value="' + esc(p.ends) + '"></div>' +
     '<div><label class="f">Blason</label><select class="in rd-f">' + Object.keys(FACES).map(k => '<option value="' + k + '"' + (k === p.face ? " selected" : "") + '>' + esc(FACES[k].name) + '</option>').join("") + '</select></div><div><label class="f">Taille (cm)</label><input class="in rd-s" type="number" min="10" max="122" value="' + esc(p.size) + '"></div>' +
     '<div><label class="f">Flèches / volée</label><input class="in rd-a" type="number" min="1" max="12" value="' + esc(p.ape) + '"></div><div style="display:flex;align-items:flex-end"><button class="btn sm danger rd-x" type="button">Retirer</button></div></div></div>';
-  dialog('<h2>' + (id ? "Modifier la ronde" : "Nouvelle ronde") + '</h2><label class="f">Nom</label><input class="in" id="rN" maxlength="40" value="' + esc(r0.name) + '"><label class="f">Description</label><input class="in" id="rD" maxlength="80" value="' + esc(r0.desc || "") + '">' +
+  dialog('<h2>' + (id ? "Modifier la ronde" : (copyFrom ? "Copie de « " + esc(roundById(copyFrom).name) + " »" : "Nouvelle ronde")) + '</h2><label class="f">Nom</label><input class="in" id="rN" maxlength="40" value="' + esc(r0.name) + '"><label class="f">Description</label><input class="in" id="rD" maxlength="80" value="' + esc(r0.desc || "") + '">' +
     '<label class="f">Distances</label><div id="rParts">' + arr(r0.parts).map(partRow).join("") + '</div><button class="btn sm" id="rPAdd" type="button">+ Distance</button>' +
     '<label class="row" style="margin-top:.7rem"><input type="checkbox" id="rH"' + (r0.hidden ? " checked" : "") + '> Cachée (n\'est plus proposée)</label>' +
-    '<div class="acts">' + (id ? (builtin ? '<button class="btn" id="rReset">Rétablir l\'original</button>' : '<button class="btn danger" id="rDel">Supprimer</button>') : '<button class="btn" data-close>Annuler</button>') + '<button class="btn pri" id="rOk">Enregistrer</button></div>',
+    '<div class="acts">' + (id ? (builtin ? '<button class="btn" id="rReset">Rétablir l\'original</button>' : '<button class="btn danger" id="rDel">Supprimer</button>') : '<button class="btn" data-close>Annuler</button>') + '<button class="btn pri" id="rOk">Enregistrer</button></div>' +
+    (id ? '<button class="btn ghost full small" id="rDup" style="margin-top:.5rem">⧉ Dupliquer pour une nouvelle ronde</button>' : ""),
   b => {
     const wire = () => b.querySelectorAll(".rd-x").forEach(x => x.onclick = () => { if(b.querySelectorAll(".rd-part").length > 1) x.closest(".rd-part").remove(); });
     wire(); b.querySelector("#rPAdd").onclick = () => { b.querySelector("#rParts").insertAdjacentHTML("beforeend", partRow({ d: 18, face: "wa10", size: 40, ape: 3, ends: 10 })); wire(); };
+    const dup = b.querySelector("#rDup"); if(dup) dup.onclick = () => { $("dlg").close(); setTimeout(() => roundDlg(null, id), 50); };
     const rs = b.querySelector("#rReset"); if(rs) rs.onclick = () => { put("config/rounds/" + id, null); $("dlg").close(); toast("Ronde rétablie."); };
     const del = b.querySelector("#rDel"); if(del) del.onclick = () => { put("config/rounds/" + id, null); $("dlg").close(); };
     b.querySelector("#rOk").onclick = () => {

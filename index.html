@@ -1,7 +1,7 @@
 <!doctype html>
 <html lang="fr" data-theme="dark">
 <head>
-<meta name="build" content="202611061224">
+<meta name="build" content="202611061639">
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover,user-scalable=no">
 <title>Sagittaire</title>
@@ -211,7 +211,7 @@ dialog::backdrop{background:rgba(5,10,20,.6)}
 <script>
 (function(){
 "use strict";
-var BUILD = "202611061224";
+var BUILD = "202611061639";
 /* ================= Utilitaires ================= */
 const $ = id => document.getElementById(id);
 const esc = s => String(s == null ? "" : s).replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
@@ -346,7 +346,9 @@ function allRounds(withHidden){
   const out = ROUNDS.map(r => Object.assign({}, r, obj(CFG.rounds[r.id]), { id: r.id, builtin: true }));
   Object.keys(CFG.rounds).forEach(k => { if(!ROUNDS.some(r => r.id === k) && CFG.rounds[k] && CFG.rounds[k].name) out.push(Object.assign({ id: k }, CFG.rounds[k], { parts: arr(CFG.rounds[k].parts) })); });
   out.forEach(r => { r.parts = arr(r.parts); });
-  return out.filter(r => withHidden || !r.hidden).sort((a, b) => (a.free ? -1 : 0) - (b.free ? -1 : 0) || (Number(a.order) || 0) - (Number(b.order) || 0));
+  // ordre choisi par l'administrateur (importance) ; les rondes non classées suivent dans l'ordre d'origine
+  const O = arr(CFG.roundOrder), pos = r => { const i = O.indexOf(r.id); return i < 0 ? 1000 + out.indexOf(r) : i; };
+  return out.filter(r => withHidden || !r.hidden).sort((a, b) => pos(a) - pos(b));
 }
 const roundById = id => allRounds(true).find(r => r.id === id) || allRounds(true)[0];
 const placeList = kind => Object.keys(CFG.places).filter(k => CFG.places[k] && CFG.places[k].name && !CFG.places[k].hidden && (!kind || CFG.places[k].kind === kind || CFG.places[k].kind === "both" || !CFG.places[k].kind))
@@ -1252,11 +1254,14 @@ function admPlaces(B){
 }
 function admRounds(B){
   const L = allRounds(true);
-  B.appendChild(h('<div class="card"><h2>Rondes et séances</h2><p class="small muted" style="margin-top:-.3rem">Modifiez, cachez ou ajoutez des rondes ; ⧉ duplique une ronde pour en faire une nouvelle sans tout refaire. Les séances déjà tirées gardent leur format.</p><ul class="list">' +
-    L.map(r => '<li class="item click" data-r="' + r.id + '"><div class="main"><b>' + (r.hidden ? "🙈 " : "") + esc(r.name) + (r.builtin ? "" : ' <span class="tag gold">perso</span>') + '</b><small>' + esc(r.desc || "") + '</small></div><button class="btn sm" data-dup="' + r.id + '" title="Dupliquer">⧉</button></li>').join("") +
+  B.appendChild(h('<div class="card"><h2>Rondes et séances</h2><p class="small muted" style="margin-top:-.3rem">▲ ▼ placent les rondes selon leur importance : c\'est l\'ordre proposé aux archers. ⧉ duplique une ronde pour en faire une nouvelle sans tout refaire. Les séances déjà tirées gardent leur format.</p><ul class="list">' +
+    L.map((r, i) => '<li class="item click" data-r="' + r.id + '"><div style="display:flex;flex-direction:column;gap:.2rem"><button class="btn sm" data-mv="-1" data-id="' + r.id + '" aria-label="Monter"' + (i === 0 ? " disabled" : "") + '>▲</button><button class="btn sm" data-mv="1" data-id="' + r.id + '" aria-label="Descendre"' + (i === L.length - 1 ? " disabled" : "") + '>▼</button></div><div class="main"><b>' + (i + 1) + '. ' + (r.hidden ? "🙈 " : "") + esc(r.name) + (r.builtin ? "" : ' <span class="tag gold">perso</span>') + '</b><small>' + esc(r.desc || "") + '</small></div><button class="btn sm" data-dup="' + r.id + '" title="Dupliquer">⧉</button></li>').join("") +
     '</ul><button class="btn sm" id="rAdd" style="margin-top:.5rem">+ Nouvelle ronde</button></div>'));
   B.querySelectorAll("[data-r]").forEach(li => li.onclick = () => roundDlg(li.dataset.r));
   B.querySelectorAll("[data-dup]").forEach(x => x.onclick = e => { e.stopPropagation(); roundDlg(null, x.dataset.dup); });
+  B.querySelectorAll("[data-mv]").forEach(x => x.onclick = e => { e.stopPropagation();
+    const ids = L.map(r => r.id), i = ids.indexOf(x.dataset.id), k = i + Number(x.dataset.mv); if(k < 0 || k >= ids.length) return;
+    ids[i] = ids[k]; ids[k] = x.dataset.id; CFG.roundOrder = ids; put("config/roundOrder", ids); B.innerHTML = ""; admRounds(B); });
   $("rAdd").onclick = () => roundDlg(null);
 }
 function roundDlg(id, copyFrom){
@@ -1363,7 +1368,7 @@ function boot(){
   $("themeBtn").textContent = document.documentElement.getAttribute("data-theme") === "dark" ? "☀️" : "🌙";
   if(DB){ try{ DB.ref(".info/connected").on("value", s => { online = !!s.val(); $("netDot").classList.toggle("on", online); $("netDot").title = online ? "En ligne" : "Hors ligne — les tirs seront envoyés au retour du réseau"; }); }catch(e){} }
   $("adminBtn").onclick = () => location.hash = "#/admin";
-  if(DB){ const W0 = ref("config"); W0.on("value", s => { const c = obj(s.val()); const before = JSON.stringify(CFG); CFG = { rounds: obj(c.rounds), places: obj(c.places), courses: obj(c.courses), adminPwd: c.adminPwd || "" }; LS.set("sg_cfg", CFG);
+  if(DB){ const W0 = ref("config"); W0.on("value", s => { const c = obj(s.val()); const before = JSON.stringify(CFG); CFG = { rounds: obj(c.rounds), places: obj(c.places), courses: obj(c.courses), roundOrder: arr(c.roundOrder), adminPwd: c.adminPwd || "" }; LS.set("sg_cfg", CFG);
     $("adminBtn").hidden = !isAdmin(); if(before !== JSON.stringify(CFG) && !/^#\/(s|admin)\//.test(location.hash) && location.hash.indexOf("#/admin") !== 0 && location.hash.indexOf("#/s/") !== 0) route(); }); }
   window.addEventListener("hashchange", route);
   route();

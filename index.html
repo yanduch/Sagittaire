@@ -1,7 +1,7 @@
 <!doctype html>
 <html lang="fr" data-theme="dark">
 <head>
-<meta name="build" content="202611061046">
+<meta name="build" content="202611061053">
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover,user-scalable=no">
 <title>Sagittaire</title>
@@ -106,9 +106,14 @@ input[type=date].in,input[type=time].in{color-scheme:dark}
 .shoot-head .ttl small{color:var(--muted)}
 .tot{font-size:1.6rem;font-weight:850;font-variant-numeric:tabular-nums;text-align:right;line-height:1}
 .tot small{display:block;font-size:.7rem;color:var(--muted);font-weight:650;margin-top:.15rem}
-.target-box{position:relative;background:radial-gradient(circle at 50% 40%,#2A3753 0%,#141C2C 70%);border-radius:18px;border:1px solid var(--line);overflow:hidden;touch-action:none;user-select:none;-webkit-user-select:none}
+.target-box{position:relative;background:radial-gradient(circle at 50% 40%,#2A3753 0%,#141C2C 70%);border-radius:18px;border:1px solid var(--line);overflow:hidden;touch-action:pan-y;user-select:none;-webkit-user-select:none;padding:0 2.1rem}
+/* bandes de côté : on y glisse le doigt pour faire défiler la page */
+.target-box .scroll-g{position:absolute;top:0;bottom:0;width:2.1rem;display:flex;align-items:center;justify-content:center;color:rgba(255,255,255,.35);font-size:.9rem;pointer-events:none;background:repeating-linear-gradient(180deg,rgba(255,255,255,.04) 0 10px,transparent 10px 20px)}
+.target-box .scroll-g.l{left:0}.target-box .scroll-g.r{right:0}
+.target-box svg.tgt{touch-action:none}
+.target-box.ro{padding:0}.target-box.ro .scroll-g{display:none}.target-box.ro svg.tgt{touch-action:pan-y}
 :root[data-theme="light"] .target-box{background:radial-gradient(circle at 50% 40%,#E8EDF4 0%,#CBD4E0 75%)}
-.target-box svg.tgt{display:block;width:100%;height:auto;aspect-ratio:1/1;max-height:62vh;margin:0 auto}
+.target-box svg.tgt{display:block;width:100%;height:auto;aspect-ratio:1/1;max-height:58vh;margin:0 auto}
 .loupe{position:absolute;width:132px;height:132px;border-radius:50%;border:3px solid #fff;box-shadow:0 8px 24px rgba(0,0,0,.5);overflow:hidden;pointer-events:none;background:#0B1220;display:none;z-index:4}
 .loupe svg{width:100%;height:100%}
 .loupe .lbl{position:absolute;bottom:6px;left:0;right:0;text-align:center;font-weight:900;font-size:1rem;color:#fff;text-shadow:0 1px 3px #000}
@@ -206,7 +211,7 @@ dialog::backdrop{background:rgba(5,10,20,.6)}
 <script>
 (function(){
 "use strict";
-var BUILD = "202611061046";
+var BUILD = "202611061053";
 /* ================= Utilitaires ================= */
 const $ = id => document.getElementById(id);
 const esc = s => String(s == null ? "" : s).replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
@@ -610,14 +615,14 @@ function viewShoot(v, aid, sid){
     '<div id="shComp"></div><div id="sh3d"></div>' +
     '<div class="card no-print" id="photoBar" style="padding:.6rem .7rem;margin:0" hidden></div>' +
     '<div class="target-box" id="tbox"><svg class="tgt" id="tgt" viewBox="-1.1 -1.1 2.2 2.2"><g id="tview"><g id="tphoto"></g><g id="tface"></g><g id="tgrp"></g><g id="tall"></g><g id="tcur"></g></g></svg>' +
-    '<div class="zoom-tools no-print"><button id="zCam" aria-label="Photo de la cible" title="Placer les flèches à partir d\'une photo">📷</button><button id="zIn" aria-label="Zoom avant">+</button><button id="zOut" aria-label="Zoom arrière">−</button><button id="zAll" aria-label="Afficher toutes les flèches" title="Toutes les flèches de la séance">◎</button></div>' +
+    '<div class="scroll-g l">↕</div><div class="scroll-g r">↕</div><div class="zoom-tools no-print"><button id="zCam" aria-label="Photo de la cible" title="Placer les flèches à partir d\'une photo">📷</button><button id="zIn" aria-label="Zoom avant">+</button><button id="zOut" aria-label="Zoom arrière">−</button><button id="zAll" aria-label="Afficher toutes les flèches" title="Toutes les flèches de la séance">◎</button></div>' +
     '<div class="loupe" id="loupe"><svg viewBox="-0.2 -0.2 0.4 0.4"><g id="lview"></g><path d="M-.2 0H.2M0 -.2V.2" stroke="#00E5FF" stroke-width=".004"/></svg><div class="lbl" id="lupLbl"></div></div></div>' +
     '<div class="card" style="padding:.7rem" id="entryCard">' +
       '<div class="row" style="margin-bottom:.5rem"><div class="seg grow" id="mSeg"><button data-m="target">🎯 Sur la cible</button><button data-m="keys">🔢 Pointage</button></div></div>' +
       '<div class="end-strip" id="strip"></div>' +
       '<div class="small" id="moveHint" hidden style="margin-top:.4rem;color:var(--blue);font-weight:650">↔ Touchez la cible pour déplacer cette flèche.</div><div class="keypad" id="keys" style="margin-top:.5rem"></div>' +
       '<div id="numBox" style="margin-top:.5rem" hidden><div class="small muted" style="margin-bottom:.25rem">Numéro de la flèche sélectionnée</div><div class="numbers" id="nums"></div></div>' +
-      '<div class="row" style="margin-top:.6rem"><button class="btn sm" id="bUndo">↶ Annuler</button><button class="btn sm danger" id="bDel" hidden>🗑 Retirer</button><span class="grow"></span><button class="btn pri" id="bNext">Volée suivante ›</button></div>' +
+      '<div class="row" style="margin-top:.6rem"><button class="btn sm" id="bUndo">↶ Annuler</button><button class="btn sm" id="bMiss" title="Flèche manquée">M</button><button class="btn sm danger" id="bDel" hidden>🗑 Retirer</button><span class="grow"></span><button class="btn pri" id="bNext">Volée suivante ›</button></div>' +
     '</div>' +
     '<div class="card"><h2>Volées</h2><table class="ends" id="ends"></table></div>' +
     '<div class="card" id="sumCard"></div>' +
@@ -631,10 +636,17 @@ function viewShoot(v, aid, sid){
   function finished(){ const P = arr(S.parts); if(P.some(p => !p.ends)) return false; const n = arr(S.ends).filter(e => e && arr(e.a).length).length; return n >= P.reduce((t, p) => t + p.ends, 0); }
   // ----- dessin -----
   function drawFace(){ const p = part(), ph = photoMarkup();
-    $("tphoto").innerHTML = ph; $("tface").innerHTML = faceSVG(p.face); $("tface").setAttribute("opacity", photo ? (photo.step === "cal" ? ".55" : ".22") : "1");
+    $("tphoto").innerHTML = ph; $("tface").innerHTML = missZone(p.face) + faceSVG(p.face); $("tface").setAttribute("opacity", photo ? (photo.step === "cal" ? ".55" : ".22") : "1");
     $("lview").innerHTML = ph + '<g opacity="' + (photo ? ".22" : "1") + '">' + faceSVG(p.face) + '</g><g id="lcur"></g>'; draw3d(); }
   /* ----- Photo de la cible : on aligne la photo sur le blason, puis on touche chaque trou ; la position est exacte ----- */
   let photo = null;
+  // Zone « manqué » bien identifiée autour du blason : un toucher plus loin est ignoré
+  function missZone(face){
+    const one = FACES[face].spots === 1;
+    return (one ? '<circle r="1.085" fill="rgba(255,90,78,.10)" stroke="rgba(255,90,78,.75)" stroke-width=".008" stroke-dasharray=".035 .025"/>' : '<rect x="-1.085" y="-1.085" width="2.17" height="2.17" rx=".07" fill="rgba(255,90,78,.10)" stroke="rgba(255,90,78,.75)" stroke-width=".008" stroke-dasharray=".035 .025"/>') +
+      '<text x="0" y="' + (one ? 1.075 : 1.078) + '" text-anchor="middle" font-size=".05" font-weight="800" fill="rgba(255,140,130,.95)">M · manqué</text>';
+  }
+  const inMissZone = (face, q) => FACES[face].spots === 1 ? Math.hypot(q.x, q.y) <= 1.09 : (Math.abs(q.x) <= 1.09 && Math.abs(q.y) <= 1.09);
   function photoMarkup(){
     if(!photo) return "";
     return '<g transform="translate(' + photo.ox + ' ' + photo.oy + ') scale(' + photo.k + ' ' + (photo.k * photo.ry) + ') translate(' + (-photo.cx) + ' ' + (-photo.cy) + ')"><image href="' + photo.url + '" x="0" y="0" width="' + photo.w + '" height="' + photo.h + '" preserveAspectRatio="none"/></g>';
@@ -810,6 +822,7 @@ function viewShoot(v, aid, sid){
     if(navigator.vibrate) try{ navigator.vibrate(12); }catch(e){}
   }
   function openEnd(i){ const e = arr(S.ends)[i]; if(!e) return; if(editIdx < 0) LS.set(curKey + "_held", cur.length ? cur : null); editIdx = i; cur = arr(e.a).map(a => Object.assign({}, a)); sel = -1; drawAll(); document.querySelector(".target-box").scrollIntoView({ behavior: "smooth", block: "center" }); toast("Modification de la volée " + (i + 1)); }
+  $("bMiss").onclick = () => addArrow({ s: 0, k: 1 });
   $("bUndo").onclick = () => { if(sel >= 0){ cur.splice(sel, 1); sel = -1; } else cur.pop(); persistCur(); redraw(); };
   $("bDel").onclick = () => { if(sel >= 0){ cur.splice(sel, 1); sel = -1; persistCur(); redraw(); } };
   $("bNext").onclick = () => {
@@ -875,19 +888,23 @@ function viewShoot(v, aid, sid){
     if(!drag) return; lp.style.display = "none"; const mk = $("tmark"); if(mk) mk.remove();
     const d = drag; drag = null; if(cancel) return;
     const q = pointer(ev), p = part();
-    if(Math.abs(q.x) > 1.12 || Math.abs(q.y) > 1.12) return;
+    if(!inMissZone(p.face, q)) return;   // hors de la zone : rien (c'est la marge)
     const sc = fromView(p.face, q.x, q.y), r = scoreAt(p.face, p.size, sc.x, sc.y);
     const a = { s: r.s, x: sc.x, y: sc.y }; if(r.x) a.X = 1; if(sc.p) a.p = sc.p;
     if(d.sel >= 0 && cur[d.sel]){ const n = cur[d.sel].n; cur[d.sel] = a; if(n) a.n = n; sel = -1; moveSel = false; persistCur(); redraw(); return; }
     addArrow(a);
   };
+  // sur la cible, le doigt place une flèche (pas de défilement) ; les bandes de côté servent à défiler
+  svg.addEventListener("touchstart", ev => { if(mine && (mode === "target" || photo)) ev.preventDefault(); }, { passive: false });
+  svg.addEventListener("touchmove", ev => { if(mine && (mode === "target" || photo)) ev.preventDefault(); }, { passive: false });
   svg.addEventListener("pointerup", ev => endDrag(ev, false));
   svg.addEventListener("pointercancel", ev => endDrag(ev, true));
   // ----- données -----
   // Spectateur (entraîneur, parent…) : la volée en cours apparaît flèche par flèche
   if(!mine){
+    $("tbox").classList.add("ro");
     $("entryCard").hidden = false;
-    ["mSeg", "keys", "bUndo", "bNext", "bDel", "numBox", "moveHint"].forEach(id => { const x = $(id); if(x) (id === "mSeg" ? x.parentElement : x).style.display = "none"; });
+    ["mSeg", "keys", "bUndo", "bMiss", "bNext", "bDel", "numBox", "moveHint"].forEach(id => { const x = $(id); if(x) (id === "mSeg" ? x.parentElement : x).style.display = "none"; });
     $("entryCard").insertAdjacentHTML("afterbegin", '<div class="row" style="margin-bottom:.4rem"><b class="grow small">Volée en cours</b><span class="tag" id="liveTag">en attente</span></div>');
     sub("live/" + aid, l => { const on = isLive(l) && l.sid === sid; cur = on ? arr(l.a) : []; const tg = $("liveTag"); if(tg){ tg.textContent = on ? "● EN DIRECT" : "pas de tir en cours"; tg.classList.toggle("live", on); } if(S) redraw(); });
   }

@@ -1,7 +1,7 @@
 <!doctype html>
 <html lang="fr" data-theme="dark">
 <head>
-<meta name="build" content="202611061639">
+<meta name="build" content="202611061644">
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover,user-scalable=no">
 <title>Sagittaire</title>
@@ -184,6 +184,8 @@ dialog::backdrop{background:rgba(5,10,20,.6)}
 @media (min-width:700px){.hero{grid-template-columns:repeat(4,1fr)}}
 .foot{text-align:center;margin:1.2rem 0 .4rem}
 .foot a{color:var(--muted);font-size:.85rem;text-decoration:none;border:1px solid var(--line);border-radius:999px;padding:.4rem .9rem;display:inline-block}
+.drag-h{touch-action:none;cursor:grab;font-size:1.3rem;color:var(--muted);padding:.4rem .5rem;margin:-.4rem 0 -.4rem -.3rem;user-select:none;-webkit-user-select:none}
+li.dragging{background:color-mix(in srgb,var(--accent) 18%,var(--surface));box-shadow:0 8px 20px rgba(0,0,0,.35);position:relative;z-index:5;border-radius:10px}
 @media print{.nav,.top .icon-btn,.no-print{display:none !important}.wrap{padding-bottom:0}}
 </style>
 </head>
@@ -211,7 +213,7 @@ dialog::backdrop{background:rgba(5,10,20,.6)}
 <script>
 (function(){
 "use strict";
-var BUILD = "202611061639";
+var BUILD = "202611061644";
 /* ================= Utilitaires ================= */
 const $ = id => document.getElementById(id);
 const esc = s => String(s == null ? "" : s).replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
@@ -1254,14 +1256,30 @@ function admPlaces(B){
 }
 function admRounds(B){
   const L = allRounds(true);
-  B.appendChild(h('<div class="card"><h2>Rondes et séances</h2><p class="small muted" style="margin-top:-.3rem">▲ ▼ placent les rondes selon leur importance : c\'est l\'ordre proposé aux archers. ⧉ duplique une ronde pour en faire une nouvelle sans tout refaire. Les séances déjà tirées gardent leur format.</p><ul class="list">' +
-    L.map((r, i) => '<li class="item click" data-r="' + r.id + '"><div style="display:flex;flex-direction:column;gap:.2rem"><button class="btn sm" data-mv="-1" data-id="' + r.id + '" aria-label="Monter"' + (i === 0 ? " disabled" : "") + '>▲</button><button class="btn sm" data-mv="1" data-id="' + r.id + '" aria-label="Descendre"' + (i === L.length - 1 ? " disabled" : "") + '>▼</button></div><div class="main"><b>' + (i + 1) + '. ' + (r.hidden ? "🙈 " : "") + esc(r.name) + (r.builtin ? "" : ' <span class="tag gold">perso</span>') + '</b><small>' + esc(r.desc || "") + '</small></div><button class="btn sm" data-dup="' + r.id + '" title="Dupliquer">⧉</button></li>').join("") +
+  B.appendChild(h('<div class="card"><h2>Rondes et séances</h2><p class="small muted" style="margin-top:-.3rem"><b>Glissez la poignée ☰</b> pour placer une ronde selon son importance (ou ⤒ pour la mettre en premier) : c\'est l\'ordre proposé aux archers. ⧉ duplique une ronde pour en faire une nouvelle sans tout refaire. Les séances déjà tirées gardent leur format.</p><ul class="list">' +
+    L.map((r, i) => '<li class="item click" data-r="' + r.id + '"><span class="drag-h" data-h="' + r.id + '" aria-label="Glisser pour déplacer">☰</span><div class="main"><b>' + (i + 1) + '. ' + (r.hidden ? "🙈 " : "") + esc(r.name) + (r.builtin ? "" : ' <span class="tag gold">perso</span>') + '</b><small>' + esc(r.desc || "") + '</small></div><button class="btn sm" data-top="' + r.id + '" title="Mettre en premier"' + (i === 0 ? " disabled" : "") + '>⤒</button><button class="btn sm" data-dup="' + r.id + '" title="Dupliquer">⧉</button></li>').join("") +
     '</ul><button class="btn sm" id="rAdd" style="margin-top:.5rem">+ Nouvelle ronde</button></div>'));
   B.querySelectorAll("[data-r]").forEach(li => li.onclick = () => roundDlg(li.dataset.r));
   B.querySelectorAll("[data-dup]").forEach(x => x.onclick = e => { e.stopPropagation(); roundDlg(null, x.dataset.dup); });
-  B.querySelectorAll("[data-mv]").forEach(x => x.onclick = e => { e.stopPropagation();
-    const ids = L.map(r => r.id), i = ids.indexOf(x.dataset.id), k = i + Number(x.dataset.mv); if(k < 0 || k >= ids.length) return;
-    ids[i] = ids[k]; ids[k] = x.dataset.id; CFG.roundOrder = ids; put("config/roundOrder", ids); B.innerHTML = ""; admRounds(B); });
+  const saveOrder = ids => { CFG.roundOrder = ids; put("config/roundOrder", ids); B.innerHTML = ""; admRounds(B); };
+  B.querySelectorAll("[data-top]").forEach(x => x.onclick = e => { e.stopPropagation(); saveOrder([x.dataset.top].concat(L.map(r => r.id).filter(id => id !== x.dataset.top))); toast("Mise en premier."); });
+  // glisser-déposer avec la poignée ☰ (doigt ou souris)
+  const ul = B.querySelector("ul.list");
+  B.querySelectorAll("[data-h]").forEach(hd => {
+    hd.onclick = e => e.stopPropagation();
+    hd.addEventListener("pointerdown", e => {
+      e.preventDefault(); e.stopPropagation(); const li = hd.closest("li");
+      li.classList.add("dragging"); let moved = false;
+      const move = ev => { const y = ev.clientY, items = Array.from(ul.children).filter(x => x !== li);
+        let before = null; for(const it of items){ const r = it.getBoundingClientRect(); if(y < r.top + r.height / 2){ before = it; break; } }
+        if(before !== li.nextSibling){ ul.insertBefore(li, before); moved = true; }
+        const rb = ul.getBoundingClientRect(); if(y < 70) window.scrollBy(0, -12); else if(y > window.innerHeight - 90) window.scrollBy(0, 12); void rb; };
+      // écoute sur la fenêtre : déplacer la ligne dans la liste ferait perdre la capture du doigt
+      const up = () => { window.removeEventListener("pointermove", move); window.removeEventListener("pointerup", up); window.removeEventListener("pointercancel", up); li.classList.remove("dragging");
+        if(moved) saveOrder(Array.from(ul.children).map(x => x.dataset.r).filter(Boolean)); };
+      window.addEventListener("pointermove", move); window.addEventListener("pointerup", up); window.addEventListener("pointercancel", up);
+    });
+  });
   $("rAdd").onclick = () => roundDlg(null);
 }
 function roundDlg(id, copyFrom){

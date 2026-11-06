@@ -1,7 +1,7 @@
 <!doctype html>
 <html lang="fr" data-theme="dark">
 <head>
-<meta name="build" content="202611060925">
+<meta name="build" content="202611061046">
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover,user-scalable=no">
 <title>Sagittaire</title>
@@ -34,20 +34,26 @@ button,input,select,textarea{font:inherit;color:inherit}
 button{cursor:pointer}
 [hidden]{display:none !important}
 a{color:var(--blue)}
-.wrap{max-width:760px;margin:0 auto;padding:max(.6rem,env(safe-area-inset-top)) .9rem 5.5rem}
+.wrap{max-width:760px;margin:0 auto;padding:max(.6rem,env(safe-area-inset-top)) .9rem calc(6.5rem + env(safe-area-inset-bottom))}
 /* barre du haut */
-.top{display:flex;align-items:center;gap:.5rem;margin:.2rem 0 .8rem}
+.top{display:flex;align-items:center;gap:.4rem;margin:.2rem 0 .8rem;min-width:0}
+.top .brand{flex:0 0 auto}
+.top .sp{min-width:0}
+.who span:first-child{min-width:0}
+html,body{overflow-x:clip}
+@media (max-width:480px){.brand>span{display:none}.top .icon-btn{width:2.1rem;height:2.1rem}.who{padding-left:.55rem}}
 .brand{display:flex;align-items:center;gap:.45rem;font-weight:800;font-size:1.2rem;letter-spacing:.01em;text-decoration:none;color:var(--ink)}
 .brand-logo{height:2.2rem;width:auto;background:#fff;border-radius:8px;padding:2px 4px;display:block}
 .hero-logo{width:100%;max-width:340px;background:#fff;border-radius:16px;padding:.6rem;display:block;margin:0 auto}
 .top .sp{flex:1}
-.who{display:flex;align-items:center;gap:.4rem;background:var(--surface);border:1px solid var(--line);border-radius:999px;padding:.25rem .3rem .25rem .7rem;font-size:.85rem;font-weight:600;max-width:55vw}
+.who{display:flex;align-items:center;gap:.4rem;background:var(--surface);border:1px solid var(--line);border-radius:999px;padding:.25rem .3rem .25rem .7rem;font-size:.85rem;font-weight:600;min-width:0;flex:0 1 auto;max-width:12rem}
 .who span{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .icon-btn{width:2.3rem;height:2.3rem;border-radius:50%;border:1px solid var(--line);background:var(--surface);display:inline-grid;place-items:center;font-size:1rem;flex:0 0 auto}
 .dot{width:.55rem;height:.55rem;border-radius:50%;background:var(--muted);flex:0 0 auto}
 .dot.on{background:var(--good)}
 /* boutons */
 .btn{border:1px solid var(--line);background:var(--surface);border-radius:12px;padding:.6rem .9rem;min-height:2.7rem;font-weight:650;display:inline-flex;align-items:center;justify-content:center;gap:.4rem}
+a.btn{text-decoration:none;color:inherit}
 .btn.pri{background:var(--accent);border-color:var(--accent);color:var(--accent-ink)}
 .btn.ghost{background:transparent}
 .btn.danger{color:var(--bad);border-color:color-mix(in srgb,var(--bad) 45%,var(--line))}
@@ -200,7 +206,7 @@ dialog::backdrop{background:rgba(5,10,20,.6)}
 <script>
 (function(){
 "use strict";
-var BUILD = "202611060925";
+var BUILD = "202611061046";
 /* ================= Utilitaires ================= */
 const $ = id => document.getElementById(id);
 const esc = s => String(s == null ? "" : s).replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
@@ -350,7 +356,7 @@ const BOW_TYPES = { R: "Classique (recurve)", C: "Poulies (compound)", B: "Arc n
 let me = LS.get("sg_me", null);      // { id, name }
 let archers = {}, archersLoaded = false;
 function setMe(a){ me = a; LS.set("sg_me", a); renderWho(); }
-function renderWho(){ $("whoName").textContent = me ? me.name : "Se connecter"; }
+function renderWho(){ $("whoName").textContent = me ? (window.innerWidth < 480 ? me.name.split(" ")[0] : me.name) : "Se connecter"; }
 const isMe = aid => !!me && me.id === aid;
 let adminOn = LS.get("sg_admin", false);
 const isAdmin = () => !!adminOn && !!CFG.adminPwd && LS.get("sg_adminPwd", "") === CFG.adminPwd;

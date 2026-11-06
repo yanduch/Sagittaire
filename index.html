@@ -1,7 +1,7 @@
 <!doctype html>
 <html lang="fr" data-theme="dark">
 <head>
-<meta name="build" content="202611060918">
+<meta name="build" content="202611060925">
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover,user-scalable=no">
 <title>Sagittaire</title>
@@ -200,7 +200,7 @@ dialog::backdrop{background:rgba(5,10,20,.6)}
 <script>
 (function(){
 "use strict";
-var BUILD = "202611060918";
+var BUILD = "202611060925";
 /* ================= Utilitaires ================= */
 const $ = id => document.getElementById(id);
 const esc = s => String(s == null ? "" : s).replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
@@ -515,19 +515,30 @@ function sessionItem(aid, sid, s){
   li.onclick = () => location.hash = "#/s/" + aid + "/" + sid;
   return li;
 }
+// Archers : ceux en train de tirer (en direct) et ceux que je suis en premier ; tout le monde peut suivre sans se connecter
+const follows = () => LS.get("sg_follow", []);
+const isLive = l => l && l.sid && (Date.now() - (l.t || 0)) < 20 * 60000;
+let liveAll = {};
 function archersCard(v){
-  const c = h('<div class="card"><h2>Archers</h2><p class="muted small">Entraîneur ? Touchez un archer pour suivre ses résultats.</p><ul class="list" id="arList"></ul></div>'); v.appendChild(c);
-  const draw = () => { const ul = $("arList"); if(!ul) return; const L = Object.keys(archers).filter(k => archers[k] && archers[k].name).sort((a, b) => archers[a].name.localeCompare(archers[b].name, "fr"));
-    ul.innerHTML = L.length ? L.map(k => '<li class="item click" data-a="' + k + '"><div class="main"><b>' + esc(archers[k].name) + '</b><small>' + esc([archers[k].club, BOW_TYPES[archers[k].bow]].filter(Boolean).join(" · ")) + '</small></div><span class="muted">›</span></li>').join("") : '<li class="empty">Aucun archer.</li>';
-    ul.querySelectorAll("[data-a]").forEach(li => li.onclick = () => location.hash = "#/a/" + li.dataset.a); };
+  const c = h('<div class="card"><h2>Archers</h2><p class="muted small">Touchez un archer pour voir ses séances, ses statistiques et ses tirs en direct — sans vous connecter. ★ = suivis.</p><ul class="list" id="arList"></ul></div>'); v.appendChild(c);
+  const draw = () => { const ul = $("arList"); if(!ul) return; const F = follows();
+    const L = Object.keys(archers).filter(k => archers[k] && archers[k].name).sort((a, b) => (isLive(liveAll[b]) ? 1 : 0) - (isLive(liveAll[a]) ? 1 : 0) || (F.indexOf(b) >= 0 ? 1 : 0) - (F.indexOf(a) >= 0 ? 1 : 0) || archers[a].name.localeCompare(archers[b].name, "fr"));
+    ul.innerHTML = L.length ? L.map(k => { const lv = isLive(liveAll[k]);
+      return '<li class="item click" data-a="' + k + '"' + (lv ? ' data-live="' + esc(liveAll[k].sid) + '"' : "") + '><div class="main"><b>' + (F.indexOf(k) >= 0 ? "★ " : "") + esc(archers[k].name) + '</b><small>' + esc([archers[k].club, BOW_TYPES[archers[k].bow]].filter(Boolean).join(" · ")) + '</small></div>' + (lv ? '<span class="tag live">● EN DIRECT</span>' : '<span class="muted">›</span>') + '</li>'; }).join("") : '<li class="empty">Aucun archer.</li>';
+    ul.querySelectorAll("[data-a]").forEach(li => li.onclick = () => location.hash = li.dataset.live ? "#/s/" + li.dataset.a + "/" + li.dataset.live : "#/a/" + li.dataset.a); };
   sub("archers", v2 => { archers = obj(v2); draw(); });
+  sub("live", v2 => { liveAll = obj(v2); draw(); });
 }
 function targetIcon(px){ return '<svg viewBox="-1.1 -1.1 2.2 2.2" width="' + px + '" height="' + px + '">' + faceSVG("wa10") + '</svg>'; }
 
 /* ----- Profil d'un archer (vue entraîneur) ----- */
 function viewArcher(v, aid){
   const a = archers[aid];
-  v.appendChild(h('<div class="card"><h2 id="arName">' + esc(a ? a.name : "Archer") + '</h2><p class="muted small" id="arSub">' + esc(a ? [a.club, BOW_TYPES[a.bow]].filter(Boolean).join(" · ") : "") + '</p><div class="row"><a class="btn sm" href="#/stats/' + aid + '">📈 Statistiques</a></div></div>'));
+  v.appendChild(h('<div class="card"><h2 id="arName">' + esc(a ? a.name : "Archer") + '</h2><p class="muted small" id="arSub">' + esc(a ? [a.club, BOW_TYPES[a.bow]].filter(Boolean).join(" · ") : "") + '</p><div class="row"><a class="btn sm" href="#/stats/' + aid + '">📈 Statistiques</a><button class="btn sm" id="arFol"></button></div><div id="arLive"></div></div>'));
+  const fol = () => { const F = follows(), on = F.indexOf(aid) >= 0; $("arFol").textContent = on ? "★ Suivi" : "☆ Suivre"; $("arFol").classList.toggle("pri", on); };
+  $("arFol").onclick = () => { let F = follows(); F = F.indexOf(aid) >= 0 ? F.filter(x => x !== aid) : F.concat([aid]); LS.set("sg_follow", F); fol(); toast(F.indexOf(aid) >= 0 ? "Archer suivi : il apparaît en premier à l'accueil." : "Vous ne suivez plus cet archer."); };
+  fol();
+  sub("live/" + aid, l => { const box = $("arLive"); if(!box) return; box.innerHTML = isLive(l) ? '<a class="btn pri full" style="margin-top:.6rem" href="#/s/' + aid + '/' + esc(l.sid) + '">● En direct : voir ses flèches maintenant</a>' : ""; });
   const card = h('<div class="card"><h2>Séances</h2><ul class="list" id="arSes"><li class="empty">Chargement…</li></ul></div>'); v.appendChild(card);
   sub("sessions/" + aid, val => { const S = obj(val), ids = Object.keys(S).filter(k => S[k]).sort((x, y) => (S[y].t || 0) - (S[x].t || 0)); const ul = $("arSes"); ul.innerHTML = "";
     if(!ids.length) ul.appendChild(h('<li class="empty">Aucune séance.</li>')); ids.forEach(k => ul.appendChild(sessionItem(aid, k, S[k]))); });
@@ -607,7 +618,6 @@ function viewShoot(v, aid, sid){
     '<div class="card no-print" id="setCard"></div>' +
   '</div>'));
   $("shBack").onclick = () => history.length > 1 ? history.back() : (location.hash = "#/");
-  if(!mine){ $("entryCard").hidden = true; }
   const part = () => { const P = arr(S && S.parts); if(!P.length) return { d: 18, face: "wa10", size: 40, ape: 3, ends: 0 };
     // partie de la volée en cours : selon le nombre de volées faites
     let i = editIdx >= 0 ? (arr(S.ends)[editIdx] || {}).part || 0 : partOfNext(); return P[Math.min(i, P.length - 1)]; };
@@ -772,7 +782,7 @@ function viewShoot(v, aid, sid){
       '<div class="row" style="margin-top:.6rem"><button class="btn sm" id="stSave">💾 Enregistrer</button><button class="btn sm" id="stPrint">🖨 Imprimer</button><span class="grow"></span><button class="btn sm danger" id="stDel">Supprimer la séance</button></div>';
     $("stSave").onclick = () => { put("sessions/" + aid + "/" + sid + "/title", $("stTitle").value.trim()); put("sessions/" + aid + "/" + sid + "/notes", $("stNotes").value.trim()); toast("Enregistré."); };
     $("stPrint").onclick = () => window.print();
-    $("stDel").onclick = () => confirmBox("Supprimer cette séance et toutes ses volées ?", "Supprimer").then(ok => { if(!ok) return; put("sessions/" + aid + "/" + sid, null); if(S.comp) put("comps/" + S.comp + "/results/" + aid, null); toast("Séance supprimée."); location.hash = "#/"; });
+    $("stDel").onclick = () => confirmBox("Supprimer cette séance et toutes ses volées ?", "Supprimer").then(ok => { if(!ok) return; put("sessions/" + aid + "/" + sid, null); if(shooter) put("live/" + aid, null); if(S.comp) put("comps/" + S.comp + "/results/" + aid, null); toast("Séance supprimée."); location.hash = "#/"; });
   }
   function redraw(){ drawArrows(); drawStrip(); if(S) shTot(); }
   function drawAll(){
@@ -783,7 +793,9 @@ function viewShoot(v, aid, sid){
   }
   // ----- saisie -----
   const curKey = "sg_cur_" + sid;
-  function persistCur(){ if(editIdx < 0) LS.set(curKey, cur); }
+  const shooter = isMe(aid);
+  function persistCur(){ if(editIdx < 0){ LS.set(curKey, cur); pushLive(); } }
+  function pushLive(){ if(!shooter) return; put("live/" + aid, { sid: sid, t: Date.now(), part: editIdx >= 0 ? 0 : partOfNext(), a: cur.map(a => { const o = { s: a.s || 0 }; if(a.X) o.X = 1; if(!a.k){ o.x = Math.round(a.x * 10000) / 10000; o.y = Math.round(a.y * 10000) / 10000; if(a.p) o.p = a.p; } else o.k = 1; if(a.n) o.n = a.n; return o; }) }); }
   function addArrow(a){
     const p = part(); if(cur.length >= p.ape){ toast("Volée complète : touchez « Volée suivante »."); return; }
     cur.push(a); sel = -1; moveSel = false;
@@ -801,7 +813,7 @@ function viewShoot(v, aid, sid){
     const E = arr(S.ends), i = wasEdit ? editIdx : E.length, pi = wasEdit ? ((E[editIdx] || {}).part || 0) : partOfNext();
     const out = cur.map(a => { const o = { s: a.s || 0 }; if(!a.k){ o.x = Math.round(a.x * 10000) / 10000; o.y = Math.round(a.y * 10000) / 10000; if(a.p) o.p = a.p; } else o.k = 1; if(a.X) o.X = 1; if(a.n) o.n = a.n; return o; });
     // la volée en cours est vidée AVANT l'écriture (la base renvoie la mise à jour tout de suite)
-    cur = []; sel = -1; moveSel = false; editIdx = -1; LS.set(curKey, []);
+    cur = []; sel = -1; moveSel = false; editIdx = -1; LS.set(curKey, []); pushLive();
     if(wasEdit){ const held = LS.get(curKey + "_held", null); if(held && held.length){ cur = held; LS.set(curKey, held); } LS.set(curKey + "_held", null); }
     put("sessions/" + aid + "/" + sid + "/ends/" + i, { part: pi, a: out, t: Date.now() }).then(() => { if(S.comp) pushCompResult(); });
     if(S) drawAll();
@@ -866,10 +878,17 @@ function viewShoot(v, aid, sid){
   svg.addEventListener("pointerup", ev => endDrag(ev, false));
   svg.addEventListener("pointercancel", ev => endDrag(ev, true));
   // ----- données -----
+  // Spectateur (entraîneur, parent…) : la volée en cours apparaît flèche par flèche
+  if(!mine){
+    $("entryCard").hidden = false;
+    ["mSeg", "keys", "bUndo", "bNext", "bDel", "numBox", "moveHint"].forEach(id => { const x = $(id); if(x) (id === "mSeg" ? x.parentElement : x).style.display = "none"; });
+    $("entryCard").insertAdjacentHTML("afterbegin", '<div class="row" style="margin-bottom:.4rem"><b class="grow small">Volée en cours</b><span class="tag" id="liveTag">en attente</span></div>');
+    sub("live/" + aid, l => { const on = isLive(l) && l.sid === sid; cur = on ? arr(l.a) : []; const tg = $("liveTag"); if(tg){ tg.textContent = on ? "● EN DIRECT" : "pas de tir en cours"; tg.classList.toggle("live", on); } if(S) redraw(); });
+  }
   sub("sessions/" + aid + "/" + sid, val => {
     if(!val){ $("view").innerHTML = '<div class="card"><h2>Séance introuvable</h2><p class="muted">Elle a peut-être été supprimée.</p><a class="btn" href="#/">Accueil</a></div>'; return; }
     S = normSession(val);
-    if(editIdx < 0 && !cur.length) cur = LS.get(curKey, []) || [];
+    if(mine && editIdx < 0 && !cur.length){ cur = LS.get(curKey, []) || []; if(cur.length) pushLive(); }
     if(S.comp && !compInfo) once("comps/" + S.comp).then(c => { compInfo = c; if(c) $("shComp").innerHTML = '<a class="card" style="display:block;text-decoration:none;color:inherit;padding:.6rem .8rem;margin:0" href="#/c/' + S.comp + '">🏆 <b>' + esc(c.name) + '</b> <span class="muted small">— voir le classement en direct ›</span></a>'; });
     if(S.arrows && !gear.loaded){ gear.loaded = true; once("gear/" + aid + "/arrows/" + S.arrows).then(x => { gear.arrowSet = x; redraw(); }); }
     drawAll();

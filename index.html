@@ -1,7 +1,7 @@
 <!doctype html>
 <html lang="fr" data-theme="dark">
 <head>
-<meta name="build" content="202611061129">
+<meta name="build" content="202611061224">
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover,user-scalable=no">
 <title>Sagittaire</title>
@@ -211,7 +211,7 @@ dialog::backdrop{background:rgba(5,10,20,.6)}
 <script>
 (function(){
 "use strict";
-var BUILD = "202611061129";
+var BUILD = "202611061224";
 /* ================= Utilitaires ================= */
 const $ = id => document.getElementById(id);
 const esc = s => String(s == null ? "" : s).replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
@@ -885,7 +885,11 @@ function viewShoot(v, aid, sid){
     put("comps/" + s.comp + "/results/" + aid, { tot: sm.tot, x: sm.x, t10: sm.t10, n: sm.n, ends: ends, t: Date.now() }); }); }
   $("mSeg").querySelectorAll("button").forEach(b => b.onclick = () => { mode = b.dataset.m; LS.set("sg_entry", mode); redraw(); });
   $("zCam").hidden = !mine;
-  $("zCam").onclick = () => { const inp = document.createElement("input"); inp.type = "file"; inp.accept = "image/*"; inp.setAttribute("capture", "environment"); inp.onchange = () => { if(inp.files && inp.files[0]) loadPhoto(inp.files[0]); }; inp.click(); };
+  // 📷 : prendre une photo maintenant OU choisir une photo déjà dans le téléphone
+  const pickPhoto = cam => { const inp = document.createElement("input"); inp.type = "file"; inp.accept = "image/*"; if(cam) inp.setAttribute("capture", "environment"); inp.onchange = () => { if(inp.files && inp.files[0]) loadPhoto(inp.files[0]); }; inp.click(); };
+  $("zCam").onclick = () => dialog('<h2>📷 Photo de la cible</h2><p class="muted small">Alignez ensuite la photo sur le blason, puis touchez chaque trou de flèche.</p>' +
+    '<div style="display:grid;gap:.5rem;margin-top:.6rem"><button class="btn pri full" id="phCam">📸 Prendre une photo</button><button class="btn full" id="phGal">🖼 Choisir dans mes photos</button></div><div class="acts"><button class="btn" data-close>Annuler</button></div>',
+    b => { b.querySelector("#phCam").onclick = () => { $("dlg").close(); pickPhoto(true); }; b.querySelector("#phGal").onclick = () => { $("dlg").close(); pickPhoto(false); }; });
   $("zIn").onclick = () => { zoom = Math.min(4, zoom * 1.5); applyZoom(); };
   $("zOut").onclick = () => { zoom = Math.max(1, zoom / 1.5); if(zoom === 1) pan = { x: 0, y: 0 }; applyZoom(); };
   $("zAll").onclick = () => { showAll = !showAll; LS.set("sg_showAll", showAll); drawArrows(); };

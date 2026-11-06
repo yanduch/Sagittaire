@@ -1,7 +1,7 @@
 <!doctype html>
 <html lang="fr" data-theme="dark">
 <head>
-<meta name="build" content="202611060823">
+<meta name="build" content="202611060904">
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover,user-scalable=no">
 <title>Sagittaire</title>
@@ -181,6 +181,7 @@ dialog::backdrop{background:rgba(5,10,20,.6)}
     <span class="sp"></span>
     <span class="dot" id="netDot" title="Connexion"></span>
     <button class="who" id="whoBtn" type="button"><span id="whoName">Se connecter</span><span class="icon-btn" style="width:1.7rem;height:1.7rem;font-size:.85rem">👤</span></button>
+    <button class="icon-btn" id="adminBtn" type="button" aria-label="Administration" hidden>🛠</button>
     <button class="icon-btn" id="themeBtn" type="button" aria-label="Mode clair / sombre">☀️</button>
   </header>
   <main id="view"></main>
@@ -196,7 +197,7 @@ dialog::backdrop{background:rgba(5,10,20,.6)}
 <script>
 (function(){
 "use strict";
-var BUILD = "202611060823";
+var BUILD = "202611060904";
 /* ================= Utilitaires ================= */
 const $ = id => document.getElementById(id);
 const esc = s => String(s == null ? "" : s).replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
@@ -325,7 +326,21 @@ const ROUNDS = [
   { id: "field",  name: "Parcours campagne",  desc: "24 cibles · 3 flèches · blason 1-6", parts: [{ d: 0, face: "field", size: 60, ape: 3, ends: 24 }] },
   { id: "3d",     name: "Parcours 3D",        desc: "24 cibles · 1 flèche · zones 5-8-10-11", parts: [{ d: 0, face: "bead", size: 40, ape: 1, ends: 24 }] }
 ];
-const roundById = id => ROUNDS.find(r => r.id === id) || ROUNDS[0];
+/* Configuration modifiable par l'administrateur : rondes (ajout / modification / masquage), lieux, parcours 3D */
+let CFG = Object.assign({ rounds: {}, places: {}, courses: {}, adminPwd: "" }, LS.get("sg_cfg", {}));
+function allRounds(withHidden){
+  const out = ROUNDS.map(r => Object.assign({}, r, obj(CFG.rounds[r.id]), { id: r.id, builtin: true }));
+  Object.keys(CFG.rounds).forEach(k => { if(!ROUNDS.some(r => r.id === k) && CFG.rounds[k] && CFG.rounds[k].name) out.push(Object.assign({ id: k }, CFG.rounds[k], { parts: arr(CFG.rounds[k].parts) })); });
+  out.forEach(r => { r.parts = arr(r.parts); });
+  return out.filter(r => withHidden || !r.hidden).sort((a, b) => (a.free ? -1 : 0) - (b.free ? -1 : 0) || (Number(a.order) || 0) - (Number(b.order) || 0));
+}
+const roundById = id => allRounds(true).find(r => r.id === id) || allRounds(true)[0];
+const placeList = kind => Object.keys(CFG.places).filter(k => CFG.places[k] && CFG.places[k].name && !CFG.places[k].hidden && (!kind || CFG.places[k].kind === kind || CFG.places[k].kind === "both" || !CFG.places[k].kind))
+  .map(k => Object.assign({ id: k }, CFG.places[k])).sort((a, b) => a.name.localeCompare(b.name, "fr"));
+const placeByName = n => placeList().find(p => p.name.toLowerCase() === String(n || "").trim().toLowerCase());
+const mapsUrl = p => "https://www.google.com/maps/search/?api=1&query=" + encodeURIComponent([p.address, p.city].filter(Boolean).join(", ") || p.name);
+function placeHtml(name){ const p = placeByName(name); if(!p) return esc(name || ""); return '<a href="' + mapsUrl(p) + '" target="_blank" rel="noopener">📍 ' + esc(p.name) + '</a>' + (p.address ? ' <span class="muted">· ' + esc([p.address, p.city].filter(Boolean).join(", ")) + '</span>' : ""); }
+const courseList = () => Object.keys(CFG.courses).filter(k => CFG.courses[k] && CFG.courses[k].name && !CFG.courses[k].hidden).map(k => Object.assign({ id: k }, CFG.courses[k])).sort((a, b) => a.name.localeCompare(b.name, "fr"));
 const BOW_TYPES = { R: "Classique (recurve)", C: "Poulies (compound)", B: "Arc nu (barebow)", L: "Arc droit / traditionnel", J: "Initiation" };
 
 /* ================= Session / identité ================= */
@@ -334,6 +349,9 @@ let archers = {}, archersLoaded = false;
 function setMe(a){ me = a; LS.set("sg_me", a); renderWho(); }
 function renderWho(){ $("whoName").textContent = me ? me.name : "Se connecter"; }
 const isMe = aid => !!me && me.id === aid;
+let adminOn = LS.get("sg_admin", false);
+const isAdmin = () => !!adminOn && !!CFG.adminPwd && LS.get("sg_adminPwd", "") === CFG.adminPwd;
+const canEditArcher = aid => isMe(aid) || isAdmin();
 
 /* ================= Boîte de dialogue ================= */
 function dialog(html, bind){
@@ -353,10 +371,12 @@ function accountDialog(){
   const a = archers[me.id] || {};
   dialog('<h2>' + esc(me.name) + '</h2><p class="muted small">' + esc([a.club, BOW_TYPES[a.bow]].filter(Boolean).join(" · ") || "Connecté sur cet appareil") + '</p>' +
     '<div class="acts"><button class="btn" data-close>Annuler</button><button class="btn danger" id="acOut">Déconnexion</button></div>' +
-    '<button class="btn ghost full small" id="acSwitch" style="margin-top:.5rem">Changer d\'archer…</button>',
+    '<button class="btn ghost full small" id="acSwitch" style="margin-top:.5rem">Changer d\'archer…</button>' +
+    '<button class="btn ghost full small" id="acAdm" style="margin-top:.2rem">' + (isAdmin() ? "🛠 Quitter le mode administrateur" : "🛠 Accès administrateur") + '</button>',
   b => {
     b.querySelector("#acOut").onclick = () => { setMe(null); $("dlg").close(); toast("Déconnecté."); location.hash = "#/"; route(); };
     b.querySelector("#acSwitch").onclick = () => { $("dlg").close(); setTimeout(() => loginDialog(true), 50); };
+    b.querySelector("#acAdm").onclick = () => { $("dlg").close(); setTimeout(adminLogin, 50); };
   });
 }
 function loginDialog(force){
@@ -368,9 +388,11 @@ function loginDialog(force){
     '<div id="lgIn"><label class="f">Archer</label><select class="in" id="lgWho"><option value="">' + (list.length ? "Choisir…" : "Aucun profil encore") + '</option>' + list.map(a => '<option value="' + a.id + '">' + esc(a.name) + (a.club ? " — " + esc(a.club) : "") + '</option>').join("") + '</select></div>' +
     '<div id="lgNew" hidden><label class="f">Nom complet</label><input class="in" id="lgName" maxlength="40" autocomplete="name"><label class="f">Club (facultatif)</label><input class="in" id="lgClub" maxlength="40"><label class="f">Type d\'arc principal</label><select class="in" id="lgBow">' + Object.keys(BOW_TYPES).map(k => '<option value="' + k + '">' + BOW_TYPES[k] + '</option>').join("") + '</select></div>' +
     '<label class="f">NIP (4 chiffres)</label><input class="in" id="lgPin" inputmode="numeric" maxlength="4" pattern="[0-9]*" autocomplete="off" style="font-size:1.4rem;letter-spacing:.5em;text-align:center">' +
-    '<div class="acts"><button class="btn" data-close>Annuler</button><button class="btn pri" id="lgGo">Continuer</button></div>',
+    '<div class="acts"><button class="btn" data-close>Annuler</button><button class="btn pri" id="lgGo">Continuer</button></div>' +
+    '<button class="btn ghost full small" id="lgAdm" style="margin-top:.5rem">🛠 Accès administrateur</button>',
   b => {
     let mode = "in";
+    b.querySelector("#lgAdm").onclick = () => { $("dlg").close(); setTimeout(adminLogin, 50); };
     b.querySelectorAll("#lgSeg button").forEach(x => x.onclick = () => { mode = x.dataset.m; b.querySelectorAll("#lgSeg button").forEach(y => y.classList.toggle("on", y === x)); b.querySelector("#lgIn").hidden = mode !== "in"; b.querySelector("#lgNew").hidden = mode !== "new"; });
     if(!list.length) b.querySelector("#lgSeg [data-m=new]").click();
     b.querySelector("#lgGo").onclick = () => {
@@ -398,7 +420,8 @@ function route(){
   if(viewCleanup){ try{ viewCleanup(); }catch(e){} viewCleanup = null; }
   unsubAll(); if(DB) keepArchers();
   const hsh = location.hash.replace(/^#\/?/, ""), p = hsh.split("/");
-  const navKey = { "": "home", new: "new", s: "new", stats: "stats", comps: "comps", c: "comps", gear: "gear", a: "home" }[p[0]] || "home";
+  const navKey = { "": "home", new: "new", s: "new", stats: "stats", comps: "comps", c: "comps", gear: "gear", a: "home", admin: "admin" }[p[0]] || "home";
+  $("adminBtn").hidden = !isAdmin();
   document.querySelectorAll("#nav a").forEach(a => a.classList.toggle("on", a.dataset.nav === navKey));
   const v = $("view"); v.innerHTML = ""; window.scrollTo(0, 0);
   if(!DB){ v.appendChild(h('<div class="card"><h2>Connexion impossible</h2><p class="muted">La base de données n\'a pas pu être chargée. Vérifiez la connexion Internet puis rechargez la page.</p><p class="muted small">Dans l\'aperçu d\'un fichier, la base est bloquée : ouvrez plutôt le site en ligne, yanduch.github.io/Sagittaire.</p><button class="btn" onclick="location.reload()">↻ Recharger</button></div>')); return; }
@@ -408,6 +431,7 @@ function route(){
   if(p[0] === "comps") return viewComps(v);
   if(p[0] === "c") return viewComp(v, p[1]);
   if(p[0] === "gear") return viewGear(v);
+  if(p[0] === "admin") return viewAdmin(v);
   if(p[0] === "a") return viewArcher(v, p[1]);
   return viewHome(v);
 }
@@ -474,6 +498,7 @@ function viewHome(v){
     if(!ids.length){ ul.appendChild(h('<li class="empty">Aucune séance. Touchez « Nouvelle séance » pour commencer.</li>')); return; }
     ids.slice(0, 40).forEach(k => ul.appendChild(sessionItem(me.id, k, S[k])));
   });
+  archersCard(v);
   sub("comps", val => {
     const C = obj(val), t = today(), list = Object.keys(C).filter(k => C[k] && C[k].date >= t && C[k].archers && C[k].archers[me.id]);
     live.innerHTML = list.length ? '<div class="card"><h2>Mes compétitions</h2><ul class="list">' + list.map(k => '<li class="item click" data-c="' + k + '"><div class="main"><b>🏆 ' + esc(C[k].name) + '</b><small>' + fmtDate(C[k].date) + (C[k].place ? " · " + esc(C[k].place) : "") + '</small></div>' + (C[k].date === t ? '<span class="tag live">AUJOURD\'HUI</span>' : "") + '</li>').join("") + '</ul></div>' : "";
@@ -515,13 +540,18 @@ function viewNew(v){
     '<div id="freeBox"><label class="f">Distance (m)</label><input class="in" id="nD" type="number" min="1" max="150" inputmode="numeric">' +
     '<label class="f">Blason</label><div class="face-pick" id="fp"></div><label class="f">Taille du blason</label><select class="in" id="nSize"></select>' +
     '<label class="f">Flèches par volée</label><div class="seg" id="nApe">' + [1, 2, 3, 4, 5, 6].map(n => '<button data-n="' + n + '">' + n + '</button>').join("") + '</div></div>' +
-    '<div class="grid2"><div><label class="f">Date</label><input class="in" id="nDate" type="date"></div><div><label class="f">Lieu</label><input class="in" id="nPlace" maxlength="40" placeholder="Club, extérieur…"></div></div>' +
+    '<div class="grid2"><div><label class="f">Date</label><input class="in" id="nDate" type="date"></div><div><label class="f">Lieu</label><input class="in" id="nPlace" maxlength="40" placeholder="Club, extérieur…" list="nPlaces"><datalist id="nPlaces">' + placeList("train").map(p => '<option value="' + esc(p.name) + '">').join("") + '</datalist></div></div>' +
+    '<div id="courseBox" hidden><label class="f">Parcours 3D</label><select class="in" id="nCourse"></select></div>' +
     '<div class="grid2"><div><label class="f">Arc</label><select class="in" id="nBow"></select></div><div><label class="f">Flèches</label><select class="in" id="nArr"></select></div></div>' +
     '<label class="f">Titre (facultatif)</label><input class="in" id="nTitle" maxlength="40">' +
     '<button class="btn pri full" id="nGo" style="margin-top:1rem">🎯 Commencer</button></div>');
   v.appendChild(c);
   $("nDate").value = today(); $("nPlace").value = LS.get("sg_lastPlace", "");
-  function drawRounds(){ $("rp").innerHTML = ROUNDS.map(r => '<button type="button" data-r="' + r.id + '" class="' + (r.id === pick ? "on" : "") + '"><b>' + esc(r.name) + '</b><small>' + esc(r.desc) + '</small></button>').join("");
+  function drawRounds(){ if(!allRounds().some(r => r.id === pick)) pick = "free";
+    const R = roundById(pick), is3d = R.parts.length && R.parts[0].face === "bead", cl = courseList();
+    $("courseBox").hidden = !(is3d && cl.length);
+    if(!$("courseBox").hidden && !$("nCourse").options.length) $("nCourse").innerHTML = '<option value="">— Sans parcours —</option>' + cl.map(c => '<option value="' + c.id + '"' + (LS.get("sg_lastCourse", "") === c.id ? " selected" : "") + '>' + esc(c.name) + ' (' + arr(c.targets).length + ' cibles)</option>').join("");
+    $("rp").innerHTML = allRounds().map(r => '<button type="button" data-r="' + r.id + '" class="' + (r.id === pick ? "on" : "") + '"><b>' + esc(r.name) + '</b><small>' + esc(r.desc) + '</small></button>').join("");
     $("rp").querySelectorAll("button").forEach(b => b.onclick = () => { pick = b.dataset.r; drawRounds(); });
     $("freeBox").hidden = pick !== "free"; }
   function drawFree(){
@@ -545,6 +575,8 @@ function viewNew(v){
     if(r.free){ cfg.d = Math.max(1, Math.min(150, Number($("nD").value) || 18)); cfg.size = Number($("nSize").value); parts = [{ d: cfg.d, face: cfg.face, size: cfg.size, ape: cfg.ape, ends: 0 }]; LS.set("sg_freeCfg", cfg); }
     LS.set("sg_lastRound", pick); LS.set("sg_lastPlace", $("nPlace").value.trim()); LS.set("sg_lastGear", { bow: $("nBow").value, arrows: $("nArr").value });
     const sid = uid(), s = { date: $("nDate").value || today(), t: Date.now(), round: r.id, title: $("nTitle").value.trim(), place: $("nPlace").value.trim(), parts: parts, bow: $("nBow").value || "", arrows: $("nArr").value || "" };
+    const cid = !$("courseBox").hidden ? $("nCourse").value : "";
+    if(cid && CFG.courses[cid]){ const n = arr(CFG.courses[cid].targets).length; if(n){ s.course = cid; s.parts = [Object.assign({}, parts[0], { ends: n })]; if(!s.title) s.title = CFG.courses[cid].name; if(!s.place && CFG.courses[cid].place) s.place = CFG.courses[cid].place; } LS.set("sg_lastCourse", cid); }
     put("sessions/" + me.id + "/" + sid, s).then(() => location.hash = "#/s/" + me.id + "/" + sid);
   };
 }
@@ -552,12 +584,13 @@ function viewNew(v){
 /* ================= Pointage d'une séance ================= */
 function viewShoot(v, aid, sid){
   let S = null, gear = {}, cur = [], editIdx = -1, sel = -1, moveSel = false, mode = LS.get("sg_entry", "target"), showAll = LS.get("sg_showAll", false), zoom = 1, pan = { x: 0, y: 0 }, compInfo = null;
-  const mine = isMe(aid);
+  const mine = canEditArcher(aid);
   v.appendChild(h('<div class="shoot">' +
     '<div class="shoot-head"><button class="icon-btn" id="shBack" aria-label="Retour">‹</button><div class="ttl"><b id="shTitle">Séance</b><small id="shSub"></small></div><div class="tot" id="shTot">0<small>&nbsp;</small></div></div>' +
-    '<div id="shComp"></div>' +
-    '<div class="target-box" id="tbox"><svg class="tgt" id="tgt" viewBox="-1.1 -1.1 2.2 2.2"><g id="tview"><g id="tface"></g><g id="tgrp"></g><g id="tall"></g><g id="tcur"></g></g></svg>' +
-    '<div class="zoom-tools no-print"><button id="zIn" aria-label="Zoom avant">+</button><button id="zOut" aria-label="Zoom arrière">−</button><button id="zAll" aria-label="Afficher toutes les flèches" title="Toutes les flèches de la séance">◎</button></div>' +
+    '<div id="shComp"></div><div id="sh3d"></div>' +
+    '<div class="card no-print" id="photoBar" style="padding:.6rem .7rem;margin:0" hidden></div>' +
+    '<div class="target-box" id="tbox"><svg class="tgt" id="tgt" viewBox="-1.1 -1.1 2.2 2.2"><g id="tview"><g id="tphoto"></g><g id="tface"></g><g id="tgrp"></g><g id="tall"></g><g id="tcur"></g></g></svg>' +
+    '<div class="zoom-tools no-print"><button id="zCam" aria-label="Photo de la cible" title="Placer les flèches à partir d\'une photo">📷</button><button id="zIn" aria-label="Zoom avant">+</button><button id="zOut" aria-label="Zoom arrière">−</button><button id="zAll" aria-label="Afficher toutes les flèches" title="Toutes les flèches de la séance">◎</button></div>' +
     '<div class="loupe" id="loupe"><svg viewBox="-0.2 -0.2 0.4 0.4"><g id="lview"></g><path d="M-.2 0H.2M0 -.2V.2" stroke="#00E5FF" stroke-width=".004"/></svg><div class="lbl" id="lupLbl"></div></div></div>' +
     '<div class="card" style="padding:.7rem" id="entryCard">' +
       '<div class="row" style="margin-bottom:.5rem"><div class="seg grow" id="mSeg"><button data-m="target">🎯 Sur la cible</button><button data-m="keys">🔢 Pointage</button></div></div>' +
@@ -578,7 +611,81 @@ function viewShoot(v, aid, sid){
   function partOfNext(){ const P = arr(S.parts), n = arr(S.ends).filter(e => e && arr(e.a).length).length; let acc = 0; for(let i = 0; i < P.length; i++){ if(!P[i].ends) return i; acc += P[i].ends; if(n < acc) return i; } return P.length - 1; }
   function finished(){ const P = arr(S.parts); if(P.some(p => !p.ends)) return false; const n = arr(S.ends).filter(e => e && arr(e.a).length).length; return n >= P.reduce((t, p) => t + p.ends, 0); }
   // ----- dessin -----
-  function drawFace(){ const p = part(); $("tface").innerHTML = faceSVG(p.face); $("lview").innerHTML = faceSVG(p.face) + '<g id="lcur"></g>'; }
+  function drawFace(){ const p = part(), ph = photoMarkup();
+    $("tphoto").innerHTML = ph; $("tface").innerHTML = faceSVG(p.face); $("tface").setAttribute("opacity", photo ? (photo.step === "cal" ? ".55" : ".22") : "1");
+    $("lview").innerHTML = ph + '<g opacity="' + (photo ? ".22" : "1") + '">' + faceSVG(p.face) + '</g><g id="lcur"></g>'; draw3d(); }
+  /* ----- Photo de la cible : on aligne la photo sur le blason, puis on touche chaque trou ; la position est exacte ----- */
+  let photo = null;
+  function photoMarkup(){
+    if(!photo) return "";
+    return '<g transform="translate(' + photo.ox + ' ' + photo.oy + ') scale(' + photo.k + ' ' + (photo.k * photo.ry) + ') translate(' + (-photo.cx) + ' ' + (-photo.cy) + ')"><image href="' + photo.url + '" x="0" y="0" width="' + photo.w + '" height="' + photo.h + '" preserveAspectRatio="none"/></g>';
+  }
+  function drawPhotoBar(){
+    const b = $("photoBar"); b.hidden = !photo; if(!photo) return;
+    if(photo.step === "cal"){
+      b.innerHTML = '<div class="small" style="font-weight:700;margin-bottom:.35rem">📷 1. Alignez la photo sur le blason</div><p class="small muted" style="margin:0 0 .4rem">Glissez la photo pour placer le centre ; ajustez la taille jusqu\'à ce que les anneaux se superposent.' + (photo.auto ? " Alignement automatique fait à partir du jaune : vérifiez." : "") + '</p>' +
+        '<label class="small">Taille</label><input type="range" id="phK" min="-2.5" max="2.5" step="0.01" value="' + Math.log(photo.k / photo.k0) + '" style="width:100%">' +
+        '<label class="small">Hauteur (photo prise en biais)</label><input type="range" id="phR" min="0.6" max="1.4" step="0.005" value="' + photo.ry + '" style="width:100%">' +
+        '<div class="row" style="margin-top:.4rem"><button class="btn sm" id="phAuto">✨ Auto</button><button class="btn sm danger" id="phOff">Retirer la photo</button><span class="grow"></span><button class="btn pri sm" id="phOk">✓ 2. Placer les flèches</button></div>';
+      $("phK").oninput = () => { photo.k = photo.k0 * Math.exp(Number($("phK").value)); drawFace(); };
+      $("phR").oninput = () => { photo.ry = Number($("phR").value); drawFace(); };
+      $("phAuto").onclick = () => { if(!autoAlign()) toast("Je n'ai pas trouvé le jaune du blason : alignez à la main."); drawPhotoBar(); drawFace(); };
+      $("phOk").onclick = () => { photo.step = "place"; mode = "target"; drawPhotoBar(); drawFace(); redraw(); toast("Touchez chaque trou de flèche sur la photo."); };
+    } else {
+      b.innerHTML = '<div class="row"><span class="small grow">📷 Touchez chaque <b>trou de flèche</b> sur la photo (la loupe aide à viser).</span><button class="btn sm" id="phRe">Réaligner</button><button class="btn sm" id="phOff">✕</button></div>';
+      $("phRe").onclick = () => { photo.step = "cal"; drawPhotoBar(); drawFace(); };
+    }
+    $("phOff").onclick = () => { photo = null; drawPhotoBar(); drawFace(); };
+  }
+  // repère le jaune (zone 9-10) : centre et taille de la photo
+  function autoAlign(){
+    const p = part(), F = FACES[p.face], c = spotCenters(p.face)[F.spots === 3 ? 1 : 0], g9 = (F.rings.find(r => r.s === 9) || F.rings[F.rings.length - 1]).r * c.k;
+    const S2 = photo.small; if(!S2) return false;
+    const d = S2.data, W2 = S2.w, H2 = S2.h; let n = 0, sx = 0, sy = 0;
+    const pts = [];
+    for(let y = 0; y < H2; y++) for(let x = 0; x < W2; x++){ const i = (y * W2 + x) * 4, r = d[i], gg = d[i + 1], bb = d[i + 2], mx = Math.max(r, gg, bb), mn = Math.min(r, gg, bb);
+      if(mx < 120 || (mx - mn) / mx < 0.42) continue; let hh = mx === r ? 60 * (((gg - bb) / (mx - mn)) % 6) : mx === gg ? 60 * ((bb - r) / (mx - mn) + 2) : 60 * ((r - gg) / (mx - mn) + 4); if(hh < 0) hh += 360;
+      if(hh >= 40 && hh <= 68){ pts.push(x, y); sx += x; sy += y; n++; } }
+    if(n < 30) return false;
+    let mx2 = sx / n, my2 = sy / n;
+    // 2e passe : garde le gros disque autour du centre (on écarte le jaune d'ailleurs)
+    let vx = 0, vy = 0; for(let i = 0; i < pts.length; i += 2){ vx += (pts[i] - mx2) ** 2; vy += (pts[i + 1] - my2) ** 2; }
+    let sdx = Math.sqrt(vx / n), sdy = Math.sqrt(vy / n), n2 = 0; sx = sy = 0; const keep = [];
+    for(let i = 0; i < pts.length; i += 2){ if(Math.hypot((pts[i] - mx2) / (sdx * 2.2 || 1), (pts[i + 1] - my2) / (sdy * 2.2 || 1)) <= 1){ keep.push(pts[i], pts[i + 1]); sx += pts[i]; sy += pts[i + 1]; n2++; } }
+    if(n2 < 30) return false; mx2 = sx / n2; my2 = sy / n2; vx = vy = 0;
+    for(let i = 0; i < keep.length; i += 2){ vx += (keep[i] - mx2) ** 2; vy += (keep[i + 1] - my2) ** 2; }
+    const rX = 2 * Math.sqrt(vx / n2) / S2.f, rY = 2 * Math.sqrt(vy / n2) / S2.f;
+    photo.cx = mx2 / S2.f; photo.cy = my2 / S2.f; photo.k = g9 / rX; photo.ry = Math.max(0.6, Math.min(1.4, rX / rY)); photo.ox = c.x; photo.oy = c.y; photo.k0 = photo.k; photo.auto = true;
+    return true;
+  }
+  function loadPhoto(file){
+    const img = new Image(), url0 = URL.createObjectURL(file);
+    img.onload = () => {
+      const M = 1400, f = Math.min(1, M / Math.max(img.width, img.height)), w = Math.round(img.width * f), hh = Math.round(img.height * f);
+      const cv = document.createElement("canvas"); cv.width = w; cv.height = hh; cv.getContext("2d").drawImage(img, 0, 0, w, hh);
+      const url = cv.toDataURL("image/jpeg", 0.82);
+      const f2 = Math.min(1, 320 / Math.max(w, hh)), w2 = Math.round(w * f2), h2 = Math.round(hh * f2), c2 = document.createElement("canvas"); c2.width = w2; c2.height = h2;
+      const x2 = c2.getContext("2d"); x2.drawImage(cv, 0, 0, w2, h2);
+      URL.revokeObjectURL(url0);
+      const p = part(), c = spotCenters(p.face)[FACES[p.face].spots === 3 ? 1 : 0];
+      photo = { url: url, w: w, h: hh, cx: w / 2, cy: hh / 2, k: 2 / Math.min(w, hh), k0: 2 / Math.min(w, hh), ry: 1, ox: 0, oy: 0, step: "cal", small: { data: x2.getImageData(0, 0, w2, h2).data, w: w2, h: h2, f: f2 } };
+      void c; autoAlign(); drawPhotoBar(); drawFace(); $("tbox").scrollIntoView({ behavior: "smooth", block: "center" });
+    };
+    img.onerror = () => toast("Impossible de lire cette photo.");
+    img.src = url0;
+  }
+  // ----- parcours 3D : photo de l'animal, distance -----
+  const photos3d = {};
+  function draw3d(){
+    const box = $("sh3d"); if(!S || !S.course){ box.innerHTML = ""; return; }
+    const C = CFG.courses[S.course]; if(!C){ box.innerHTML = ""; return; }
+    const T = arr(C.targets), i = editIdx >= 0 ? editIdx : Math.min(T.length - 1, arr(S.ends).filter(e => e && arr(e.a).length).length), t = T[i] || {};
+    const key = S.course + "/" + (t.pid || i);
+    box.innerHTML = '<div class="card" style="padding:.6rem;margin:0;display:flex;gap:.7rem;align-items:center">' + (t.photo ? '<img id="t3dImg" alt="" style="width:7.5rem;height:5.5rem;object-fit:cover;border-radius:10px;background:var(--surface2)">' : '<div style="width:4rem;height:4rem;border-radius:10px;background:var(--surface2);display:grid;place-items:center;font-size:1.8rem">🦌</div>') +
+      '<div><div class="small muted">Cible ' + (i + 1) + ' / ' + T.length + '</div><b style="font-size:1.1rem">' + esc(t.animal || "Cible " + (i + 1)) + '</b><div class="small">' + (t.dist ? "📏 " + esc(t.dist) + " m" : "") + (t.notes ? ' · ' + esc(t.notes) : "") + '</div></div></div>';
+    if(t.photo){ const set = u => { const im = $("t3dImg"); if(im && u) im.src = u; };
+      if(photos3d[key]) set(photos3d[key]); else once("coursePhotos/" + key).then(u => { photos3d[key] = u; set(u); }); }
+  }
   function arrowDot(face, a, i, curEnd){
     const q = toView(face, a), r = curEnd ? 0.028 : 0.018;
     return '<g' + (curEnd ? ' data-i="' + i + '"' : "") + '><circle cx="' + q.x + '" cy="' + q.y + '" r="' + r + '" fill="' + (curEnd ? (i === sel ? "#00E5FF" : "#39FF88") : "rgba(57,255,136,.55)") + '" stroke="#081018" stroke-width=".006"/>' +
@@ -657,7 +764,7 @@ function viewShoot(v, aid, sid){
   function kpi(v, l){ return '<div class="kpi"><b>' + v + '</b><span>' + l + '</span></div>'; }
   function drawSettings(){
     if(!mine){ $("setCard").innerHTML = '<p class="muted small">Vue en lecture seule.</p>'; return; }
-    $("setCard").innerHTML = '<h2>Séance</h2><label class="f">Titre</label><input class="in" id="stTitle" maxlength="40" value="' + esc(S.title || "") + '">' +
+    $("setCard").innerHTML = '<h2>Séance</h2>' + (S.place ? '<p class="small" style="margin:-.2rem 0 .3rem">' + placeHtml(S.place) + '</p>' : "") + '<label class="f">Titre</label><input class="in" id="stTitle" maxlength="40" value="' + esc(S.title || "") + '">' +
       '<label class="f">Notes (météo, sensations, réglages…)</label><textarea class="in" id="stNotes" rows="3" maxlength="600">' + esc(S.notes || "") + '</textarea>' +
       '<div class="row" style="margin-top:.6rem"><button class="btn sm" id="stSave">💾 Enregistrer</button><button class="btn sm" id="stPrint">🖨 Imprimer</button><span class="grow"></span><button class="btn sm danger" id="stDel">Supprimer la séance</button></div>';
     $("stSave").onclick = () => { put("sessions/" + aid + "/" + sid + "/title", $("stTitle").value.trim()); put("sessions/" + aid + "/" + sid + "/notes", $("stNotes").value.trim()); toast("Enregistré."); };
@@ -700,6 +807,8 @@ function viewShoot(v, aid, sid){
   function pushCompResult(){ once("sessions/" + aid + "/" + sid).then(s => { if(!s || !s.comp) return; const sm = sessionSummary(s), ends = arr(s.ends).filter(e => e && arr(e.a).length).map(e => arr(e.a).reduce((t, a) => t + arrowVal(a), 0));
     put("comps/" + s.comp + "/results/" + aid, { tot: sm.tot, x: sm.x, t10: sm.t10, n: sm.n, ends: ends, t: Date.now() }); }); }
   $("mSeg").querySelectorAll("button").forEach(b => b.onclick = () => { mode = b.dataset.m; LS.set("sg_entry", mode); redraw(); });
+  $("zCam").hidden = !mine;
+  $("zCam").onclick = () => { const inp = document.createElement("input"); inp.type = "file"; inp.accept = "image/*"; inp.setAttribute("capture", "environment"); inp.onchange = () => { if(inp.files && inp.files[0]) loadPhoto(inp.files[0]); }; inp.click(); };
   $("zIn").onclick = () => { zoom = Math.min(4, zoom * 1.5); applyZoom(); };
   $("zOut").onclick = () => { zoom = Math.max(1, zoom / 1.5); if(zoom === 1) pan = { x: 0, y: 0 }; applyZoom(); };
   $("zAll").onclick = () => { showAll = !showAll; LS.set("sg_showAll", showAll); drawArrows(); };
@@ -730,14 +839,18 @@ function viewShoot(v, aid, sid){
     mk.setAttribute("cx", q.x); mk.setAttribute("cy", q.y);
   }
   svg.addEventListener("pointerdown", ev => {
+    if(photo && photo.step === "cal"){ // déplacer la photo
+      ev.preventDefault(); try{ svg.setPointerCapture(ev.pointerId); }catch(e){}
+      const r = svg.getBoundingClientRect(); drag = { pan: true, x0: ev.clientX, y0: ev.clientY, cx: photo.cx, cy: photo.cy, s: 2.2 / r.width / zoom }; return; }
     if(!mine || mode !== "target") return;
     // un toucher place toujours une flèche (même tout près d'une autre) ; pour déplacer une flèche, touchez sa pastille puis la cible
     ev.preventDefault(); try{ svg.setPointerCapture(ev.pointerId); }catch(e){}
     drag = { moved: false, sel: (moveSel && sel >= 0) ? sel : -1, x0: ev.clientX, y0: ev.clientY };
     showLoupe(ev, pointer(ev));
   });
-  svg.addEventListener("pointermove", ev => { if(!drag) return; if(Math.hypot(ev.clientX - drag.x0, ev.clientY - drag.y0) > 6) drag.moved = true; showLoupe(ev, pointer(ev)); });
+  svg.addEventListener("pointermove", ev => { if(drag && drag.pan){ photo.cx = drag.cx - (ev.clientX - drag.x0) * drag.s / photo.k; photo.cy = drag.cy - (ev.clientY - drag.y0) * drag.s / (photo.k * photo.ry); photo.auto = false; drawFace(); return; } if(!drag) return; if(Math.hypot(ev.clientX - drag.x0, ev.clientY - drag.y0) > 6) drag.moved = true; showLoupe(ev, pointer(ev)); });
   const endDrag = (ev, cancel) => {
+    if(drag && drag.pan){ drag = null; return; }
     if(!drag) return; lp.style.display = "none"; const mk = $("tmark"); if(mk) mk.remove();
     const d = drag; drag = null; if(cancel) return;
     const q = pointer(ev), p = part();
@@ -891,7 +1004,7 @@ function viewComps(v){
   v.appendChild(h('<div class="card"><h2>Compétitions</h2><p class="muted small" style="margin-top:-.3rem">Chaque archer pointe ses volées sur son téléphone ; le classement se met à jour en direct pour tout le monde.</p><button class="btn pri" id="cNew">+ Créer une compétition</button></div>'));
   v.appendChild(h('<div class="card"><h2>À venir et en cours</h2><ul class="list" id="cUp"></ul></div>'));
   v.appendChild(h('<div class="card"><h2>Passées</h2><ul class="list" id="cPast"></ul></div>'));
-  $("cNew").onclick = () => { if(needMe()) compDlg(null); };
+  $("cNew").onclick = () => { if(isAdmin() || needMe()) compDlg(null); };
   sub("comps", val => {
     const C = obj(val), t = today(), ids = Object.keys(C).filter(k => C[k] && C[k].name);
     const item = k => { const c = C[k], n = Object.keys(obj(c.archers)).length; return '<li class="item click" data-c="' + k + '"><div class="main"><b>🏆 ' + esc(c.name) + '</b><small>' + fmtDate(c.date) + (c.place ? " · " + esc(c.place) : "") + " · " + esc(roundById(c.round).name) + " · " + n + " archer" + (n > 1 ? "s" : "") + '</small></div>' + (c.date === t ? '<span class="tag live">EN DIRECT</span>' : "") + '</li>'; };
@@ -904,8 +1017,8 @@ function viewComps(v){
 function compDlg(id, c0){
   const c = Object.assign({ name: "", date: today(), place: "", round: "wa18", divisions: "R,C,B" }, obj(c0));
   dialog('<h2>' + (id ? "Modifier la compétition" : "Nouvelle compétition") + '</h2><label class="f">Nom</label><input class="in" id="cN" maxlength="50" value="' + esc(c.name) + '" placeholder="Ex. : Championnat régional en salle">' +
-    '<div class="grid2"><div><label class="f">Date</label><input class="in" id="cD" type="date" value="' + esc(c.date) + '"></div><div><label class="f">Lieu</label><input class="in" id="cP" maxlength="40" value="' + esc(c.place) + '"></div></div>' +
-    '<label class="f">Ronde</label><select class="in" id="cR">' + ROUNDS.filter(r => !r.free).map(r => '<option value="' + r.id + '"' + (r.id === c.round ? " selected" : "") + '>' + esc(r.name) + ' — ' + esc(r.desc) + '</option>').join("") + '</select>' +
+    '<div class="grid2"><div><label class="f">Date</label><input class="in" id="cD" type="date" value="' + esc(c.date) + '"></div><div><label class="f">Lieu</label><input class="in" id="cP" maxlength="40" value="' + esc(c.place) + '" list="cPlaces"><datalist id="cPlaces">' + placeList("comp").map(p => '<option value="' + esc(p.name) + '">').join("") + '</datalist></div></div>' +
+    '<label class="f">Ronde</label><select class="in" id="cR">' + allRounds().filter(r => !r.free).map(r => '<option value="' + r.id + '"' + (r.id === c.round ? " selected" : "") + '>' + esc(r.name) + ' — ' + esc(r.desc) + '</option>').join("") + '</select>' +
     '<label class="f">Divisions</label><div class="chips" id="cDiv">' + Object.keys(BOW_TYPES).map(k => '<button type="button" class="chip' + (String(c.divisions).split(",").indexOf(k) >= 0 ? " on" : "") + '" data-k="' + k + '">' + BOW_TYPES[k] + '</button>').join("") + '</div>' +
     '<div class="acts">' + (id ? '<button class="btn danger" id="cDel">Supprimer</button>' : '<button class="btn" data-close>Annuler</button>') + '<button class="btn pri" id="cOk">Enregistrer</button></div>',
   b => {
@@ -915,7 +1028,7 @@ function compDlg(id, c0){
       const name = b.querySelector("#cN").value.trim(); if(!name){ toast("Donnez un nom."); return; }
       const divs = Array.from(b.querySelectorAll("#cDiv .chip.on")).map(x => x.dataset.k); if(!divs.length){ toast("Choisissez au moins une division."); return; }
       const nid = id || uid(), base = "comps/" + nid + "/";
-      const data = { name: name, date: b.querySelector("#cD").value || today(), place: b.querySelector("#cP").value.trim(), round: b.querySelector("#cR").value, divisions: divs.join(","), owner: (c0 && c0.owner) || me.id };
+      const data = { name: name, date: b.querySelector("#cD").value || today(), place: b.querySelector("#cP").value.trim(), round: b.querySelector("#cR").value, divisions: divs.join(","), owner: (c0 && c0.owner) || (me ? me.id : "admin") };
       Object.keys(data).forEach(k => put(base + k, data[k]));
       $("dlg").close(); toast("Compétition enregistrée."); if(!id) location.hash = "#/c/" + nid;
     };
@@ -930,9 +1043,9 @@ function viewComp(v, cid){
     if(!C){ $("cTitle").textContent = "Compétition introuvable"; return; }
     const r = roundById(C.round), A = obj(C.archers), R = obj(C.results), t = today();
     $("cTitle").textContent = "🏆 " + C.name;
-    $("cSub").textContent = [fmtDate(C.date), C.place, r.name + " — " + r.desc].filter(Boolean).join(" · ");
+    $("cSub").innerHTML = [esc(fmtDate(C.date)), placeHtml(C.place), esc(r.name + " — " + r.desc)].filter(Boolean).join(" · ");
     $("cLive").hidden = C.date !== t;
-    $("cEdit").hidden = !(me && C.owner === me.id); $("cEdit").onclick = () => compDlg(cid, C);
+    $("cEdit").hidden = !((me && C.owner === me.id) || isAdmin()); $("cEdit").onclick = () => compDlg(cid, C);
     const acts = $("cActs"); acts.innerHTML = "";
     if(me && A[me.id]){
       const sid = A[me.id].sid;
@@ -971,6 +1084,150 @@ function viewComp(v, cid){
   sub("comps/" + cid, val => { C = val; draw(); });
 }
 
+/* ================= Administration ================= */
+function adminLogin(){
+  if(isAdmin()){ adminOn = false; LS.set("sg_admin", false); toast("Mode administrateur désactivé."); route(); return; }
+  const first = !CFG.adminPwd;
+  dialog('<h2>🛠 Administrateur</h2><p class="muted small">' + (first ? "Aucun mot de passe n\'existe encore : choisissez-en un (6 caractères ou plus). Gardez-le pour vous." : "Entrez le mot de passe administrateur.") + '</p>' +
+    '<input class="in" id="adP" type="password" autocomplete="current-password" maxlength="40">' + (first ? '<label class="f">Confirmer</label><input class="in" id="adP2" type="password" maxlength="40">' : "") +
+    '<div class="acts"><button class="btn" data-close>Annuler</button><button class="btn pri" id="adOk">Entrer</button></div>',
+  b => { const go = () => {
+      const pw = b.querySelector("#adP").value;
+      if(first){ if(pw.length < 6) return toast("6 caractères minimum."); if(pw !== b.querySelector("#adP2").value) return toast("Les deux mots de passe diffèrent."); put("config/adminPwd", pw); CFG.adminPwd = pw; }
+      else if(pw !== CFG.adminPwd) return toast("Mot de passe incorrect.");
+      LS.set("sg_adminPwd", pw); adminOn = true; LS.set("sg_admin", true); $("dlg").close(); toast("Mode administrateur activé."); location.hash = "#/admin"; route(); };
+    b.querySelector("#adOk").onclick = go; b.querySelector("#adP").onkeydown = e => { if(e.key === "Enter" && !first) go(); }; });
+}
+function viewAdmin(v){
+  if(!isAdmin()){ v.appendChild(h('<div class="card"><h2>Administration</h2><p class="muted">Réservé à l\'administrateur.</p><button class="btn pri" id="adIn">🛠 Accès administrateur</button></div>')); $("adIn").onclick = adminLogin; return; }
+  const tabs = [["places", "📍 Lieux"], ["rounds", "🎯 Rondes"], ["courses", "🦌 Parcours 3D"], ["archers", "👤 Archers"], ["other", "⚙️ Autres"]];
+  let tab = LS.get("sg_admTab", "places");
+  v.appendChild(h('<div class="card"><div class="row"><h2 class="grow" style="margin:0">🛠 Administration</h2><button class="btn sm" id="admOut">Quitter</button></div><div class="chips" id="admTabs" style="margin-top:.6rem"></div></div>'));
+  v.appendChild(h('<div id="admBody"></div>'));
+  $("admOut").onclick = () => { adminOn = false; LS.set("sg_admin", false); location.hash = "#/"; };
+  const drawTabs = () => { $("admTabs").innerHTML = tabs.map(t => '<button class="chip' + (t[0] === tab ? " on" : "") + '" data-t="' + t[0] + '">' + t[1] + '</button>').join(""); $("admTabs").querySelectorAll("button").forEach(b => b.onclick = () => { tab = b.dataset.t; LS.set("sg_admTab", tab); drawTabs(); body(); }); };
+  function body(){ const B = $("admBody"); if(!B) return; B.innerHTML = "";
+    if(tab === "places") admPlaces(B); else if(tab === "rounds") admRounds(B); else if(tab === "courses") admCourses(B); else if(tab === "archers") admArchers(B); else admOther(B); }
+  drawTabs(); body();
+  sub("config", () => body());
+  sub("archers", () => { if(tab === "archers") body(); });
+}
+const KIND = { train: "Entraînement", comp: "Compétition", both: "Les deux" };
+function admPlaces(B){
+  const L = Object.keys(CFG.places).filter(k => CFG.places[k]).map(k => Object.assign({ id: k }, CFG.places[k])).sort((a, b) => a.name.localeCompare(b.name, "fr"));
+  B.appendChild(h('<div class="card"><h2>Lieux</h2><p class="small muted" style="margin-top:-.3rem">Proposés au choix du lieu d\'une séance (entraînement) ou d\'une compétition, avec un lien vers la carte.</p><ul class="list">' +
+    (L.map(p => '<li class="item click" data-p="' + p.id + '"><div class="main"><b>' + (p.hidden ? "🙈 " : "📍 ") + esc(p.name) + '</b><small>' + esc([KIND[p.kind || "both"], p.address, p.city].filter(Boolean).join(" · ")) + '</small></div><span class="muted">›</span></li>').join("") || '<li class="empty">Aucun lieu.</li>') +
+    '</ul><button class="btn sm" id="plAdd" style="margin-top:.5rem">+ Ajouter un lieu</button></div>'));
+  const edit = id => { const p = Object.assign({ name: "", kind: "both", address: "", city: "", notes: "", hidden: false }, obj(CFG.places[id]));
+    dialog('<h2>' + (id ? "Modifier le lieu" : "Nouveau lieu") + '</h2><label class="f">Nom</label><input class="in" id="pN" maxlength="40" value="' + esc(p.name) + '" placeholder="Ex. : Gymnase du club">' +
+      '<label class="f">Utilisé pour</label><select class="in" id="pK">' + Object.keys(KIND).map(k => '<option value="' + k + '"' + (k === (p.kind || "both") ? " selected" : "") + '>' + KIND[k] + '</option>').join("") + '</select>' +
+      '<label class="f">Adresse</label><input class="in" id="pA" maxlength="80" value="' + esc(p.address) + '" placeholder="Numéro et rue" autocomplete="street-address"><label class="f">Ville</label><input class="in" id="pC" maxlength="40" value="' + esc(p.city) + '">' +
+      '<label class="f">Notes (stationnement, accès, horaire…)</label><textarea class="in" id="pNo" rows="2" maxlength="300">' + esc(p.notes) + '</textarea>' +
+      '<label class="row" style="margin-top:.6rem"><input type="checkbox" id="pH"' + (p.hidden ? " checked" : "") + '> Caché (n\'est plus proposé)</label>' +
+      '<div class="acts">' + (id ? '<button class="btn danger" id="pDel">Supprimer</button>' : '<button class="btn" data-close>Annuler</button>') + '<button class="btn pri" id="pOk">Enregistrer</button></div>',
+    b => { const del = b.querySelector("#pDel"); if(del) del.onclick = () => { put("config/places/" + id, null); $("dlg").close(); };
+      b.querySelector("#pOk").onclick = () => { const n = b.querySelector("#pN").value.trim(); if(!n) return toast("Donnez un nom.");
+        put("config/places/" + (id || uid()), { name: n, kind: b.querySelector("#pK").value, address: b.querySelector("#pA").value.trim(), city: b.querySelector("#pC").value.trim(), notes: b.querySelector("#pNo").value.trim(), hidden: b.querySelector("#pH").checked || null });
+        $("dlg").close(); toast("Lieu enregistré."); }; }); };
+  B.querySelectorAll("[data-p]").forEach(li => li.onclick = () => edit(li.dataset.p));
+  $("plAdd").onclick = () => edit(null);
+}
+function admRounds(B){
+  const L = allRounds(true);
+  B.appendChild(h('<div class="card"><h2>Rondes et séances</h2><p class="small muted" style="margin-top:-.3rem">Modifiez, cachez ou ajoutez des rondes. Les séances déjà tirées gardent leur format.</p><ul class="list">' +
+    L.map(r => '<li class="item click" data-r="' + r.id + '"><div class="main"><b>' + (r.hidden ? "🙈 " : "") + esc(r.name) + (r.builtin ? "" : ' <span class="tag gold">perso</span>') + '</b><small>' + esc(r.desc || "") + '</small></div><span class="muted">›</span></li>').join("") +
+    '</ul><button class="btn sm" id="rAdd" style="margin-top:.5rem">+ Nouvelle ronde</button></div>'));
+  B.querySelectorAll("[data-r]").forEach(li => li.onclick = () => roundDlg(li.dataset.r));
+  $("rAdd").onclick = () => roundDlg(null);
+}
+function roundDlg(id){
+  const r0 = id ? roundById(id) : { name: "", desc: "", parts: [{ d: 18, face: "wa10", size: 40, ape: 3, ends: 10 }] }, builtin = id && ROUNDS.some(r => r.id === id);
+  const partRow = p => '<div class="card rd-part" style="padding:.5rem;margin:.4rem 0;box-shadow:none"><div class="grid2"><div><label class="f" style="margin-top:0">Distance (m)</label><input class="in rd-d" type="number" min="0" max="150" value="' + esc(p.d) + '"></div><div><label class="f" style="margin-top:0">Volées (0 = illimité)</label><input class="in rd-e" type="number" min="0" max="60" value="' + esc(p.ends) + '"></div>' +
+    '<div><label class="f">Blason</label><select class="in rd-f">' + Object.keys(FACES).map(k => '<option value="' + k + '"' + (k === p.face ? " selected" : "") + '>' + esc(FACES[k].name) + '</option>').join("") + '</select></div><div><label class="f">Taille (cm)</label><input class="in rd-s" type="number" min="10" max="122" value="' + esc(p.size) + '"></div>' +
+    '<div><label class="f">Flèches / volée</label><input class="in rd-a" type="number" min="1" max="12" value="' + esc(p.ape) + '"></div><div style="display:flex;align-items:flex-end"><button class="btn sm danger rd-x" type="button">Retirer</button></div></div></div>';
+  dialog('<h2>' + (id ? "Modifier la ronde" : "Nouvelle ronde") + '</h2><label class="f">Nom</label><input class="in" id="rN" maxlength="40" value="' + esc(r0.name) + '"><label class="f">Description</label><input class="in" id="rD" maxlength="80" value="' + esc(r0.desc || "") + '">' +
+    '<label class="f">Distances</label><div id="rParts">' + arr(r0.parts).map(partRow).join("") + '</div><button class="btn sm" id="rPAdd" type="button">+ Distance</button>' +
+    '<label class="row" style="margin-top:.7rem"><input type="checkbox" id="rH"' + (r0.hidden ? " checked" : "") + '> Cachée (n\'est plus proposée)</label>' +
+    '<div class="acts">' + (id ? (builtin ? '<button class="btn" id="rReset">Rétablir l\'original</button>' : '<button class="btn danger" id="rDel">Supprimer</button>') : '<button class="btn" data-close>Annuler</button>') + '<button class="btn pri" id="rOk">Enregistrer</button></div>',
+  b => {
+    const wire = () => b.querySelectorAll(".rd-x").forEach(x => x.onclick = () => { if(b.querySelectorAll(".rd-part").length > 1) x.closest(".rd-part").remove(); });
+    wire(); b.querySelector("#rPAdd").onclick = () => { b.querySelector("#rParts").insertAdjacentHTML("beforeend", partRow({ d: 18, face: "wa10", size: 40, ape: 3, ends: 10 })); wire(); };
+    const rs = b.querySelector("#rReset"); if(rs) rs.onclick = () => { put("config/rounds/" + id, null); $("dlg").close(); toast("Ronde rétablie."); };
+    const del = b.querySelector("#rDel"); if(del) del.onclick = () => { put("config/rounds/" + id, null); $("dlg").close(); };
+    b.querySelector("#rOk").onclick = () => {
+      const name = b.querySelector("#rN").value.trim(); if(!name) return toast("Donnez un nom.");
+      const parts = Array.from(b.querySelectorAll(".rd-part")).map(x => { const f = x.querySelector(".rd-f").value; return { d: Math.max(0, Number(x.querySelector(".rd-d").value) || 0), face: f, size: Math.max(10, Number(x.querySelector(".rd-s").value) || FACES[f].def), ape: Math.max(1, Math.min(12, Number(x.querySelector(".rd-a").value) || 3)), ends: Math.max(0, Math.min(60, Number(x.querySelector(".rd-e").value) || 0)) }; });
+      const free = parts.length === 1 && !parts[0].ends;
+      put("config/rounds/" + (id || uid()), { name: name, desc: b.querySelector("#rD").value.trim(), parts: parts, hidden: b.querySelector("#rH").checked || null, free: (id === "free" || (!builtin && free)) || null });
+      $("dlg").close(); toast("Ronde enregistrée.");
+    };
+  });
+}
+// Photos : réduites (900 px, JPEG) et gardées dans la base, à part, chargées seulement au besoin
+function shrinkPhoto(file, max){ return new Promise((res, rej) => { const img = new Image(), u = URL.createObjectURL(file);
+  img.onload = () => { const f = Math.min(1, (max || 900) / Math.max(img.width, img.height)), c = document.createElement("canvas"); c.width = Math.round(img.width * f); c.height = Math.round(img.height * f); c.getContext("2d").drawImage(img, 0, 0, c.width, c.height); URL.revokeObjectURL(u); res(c.toDataURL("image/jpeg", 0.72)); };
+  img.onerror = rej; img.src = u; }); }
+function admCourses(B){
+  const L = Object.keys(CFG.courses).filter(k => CFG.courses[k]).map(k => Object.assign({ id: k }, CFG.courses[k])).sort((a, b) => a.name.localeCompare(b.name, "fr"));
+  B.appendChild(h('<div class="card"><h2>Parcours 3D</h2><p class="small muted" style="margin-top:-.3rem">Chaque cible du sentier : l\'animal, sa photo et la distance. Choisissez le parcours en commençant une séance « Parcours 3D ».</p><ul class="list">' +
+    (L.map(c => '<li class="item click" data-c="' + c.id + '"><div class="main"><b>' + (c.hidden ? "🙈 " : "🦌 ") + esc(c.name) + '</b><small>' + arr(c.targets).length + ' cibles' + (c.place ? " · " + esc(c.place) : "") + '</small></div><span class="muted">›</span></li>').join("") || '<li class="empty">Aucun parcours.</li>') +
+    '</ul><button class="btn sm" id="coAdd" style="margin-top:.5rem">+ Nouveau parcours</button></div>'));
+  B.querySelectorAll("[data-c]").forEach(li => li.onclick = () => courseDlg(li.dataset.c));
+  $("coAdd").onclick = () => courseDlg(null);
+}
+function courseDlg(id){
+  const c = Object.assign({ name: "", place: "", targets: [], hidden: false }, obj(CFG.courses[id])), cid = id || uid();
+  let T = arr(c.targets).map((t, i) => Object.assign({ pid: t.pid || String(i) }, t));
+  if(!T.length) T = [{ pid: uid(), animal: "", dist: "", notes: "" }];
+  const pending = {};   // photos nouvellement choisies (pid -> dataURL)
+  const row = (t, i) => '<div class="card co-t" data-pid="' + t.pid + '" style="padding:.5rem;margin:.4rem 0;box-shadow:none;display:grid;grid-template-columns:4.6rem 1fr;gap:.5rem;align-items:start">' +
+    '<label style="cursor:pointer"><img class="co-img" alt="" style="width:4.6rem;height:4.6rem;object-fit:cover;border-radius:10px;background:var(--surface2);display:block"><input type="file" accept="image/*" class="co-file" hidden><span class="small muted" style="display:block;text-align:center">📷 Photo</span></label>' +
+    '<div><div class="row"><b class="small">Cible ' + (i + 1) + '</b><span class="grow"></span><button type="button" class="btn sm co-up">↑</button><button type="button" class="btn sm danger co-x">✕</button></div>' +
+    '<input class="in co-a" maxlength="30" placeholder="Animal (ex. : chevreuil)" value="' + esc(t.animal || "") + '" style="margin-top:.3rem"><div class="grid2" style="margin-top:.3rem"><input class="in co-d" inputmode="numeric" maxlength="6" placeholder="Distance (m)" value="' + esc(t.dist || "") + '"><input class="in co-n" maxlength="40" placeholder="Note" value="' + esc(t.notes || "") + '"></div></div></div>';
+  dialog('<h2>' + (id ? "Modifier le parcours" : "Nouveau parcours 3D") + '</h2><label class="f">Nom</label><input class="in" id="coN" maxlength="40" value="' + esc(c.name) + '" placeholder="Ex. : Sentier du club"><label class="f">Lieu</label><input class="in" id="coP" maxlength="40" value="' + esc(c.place) + '" list="coPl"><datalist id="coPl">' + placeList().map(p => '<option value="' + esc(p.name) + '">').join("") + '</datalist>' +
+    '<label class="f">Cibles du sentier</label><div id="coT"></div><button class="btn sm" id="coTAdd" type="button">+ Cible</button>' +
+    '<label class="row" style="margin-top:.7rem"><input type="checkbox" id="coH"' + (c.hidden ? " checked" : "") + '> Caché</label>' +
+    '<div class="acts">' + (id ? '<button class="btn danger" id="coDel">Supprimer</button>' : '<button class="btn" data-close>Annuler</button>') + '<button class="btn pri" id="coOk">Enregistrer</button></div>',
+  b => {
+    const read = () => Array.from(b.querySelectorAll(".co-t")).map(x => { const o = T.find(t => t.pid === x.dataset.pid) || {}; return Object.assign({}, o, { pid: x.dataset.pid, animal: x.querySelector(".co-a").value.trim(), dist: x.querySelector(".co-d").value.trim(), notes: x.querySelector(".co-n").value.trim() }); });
+    const draw = () => { const box = b.querySelector("#coT"); box.innerHTML = T.map(row).join("");
+      box.querySelectorAll(".co-t").forEach((x, i) => { const pid = x.dataset.pid, img = x.querySelector(".co-img");
+        if(pending[pid]) img.src = pending[pid]; else if(T[i].photo) once("coursePhotos/" + cid + "/" + pid).then(u => { if(u) img.src = u; });
+        x.querySelector(".co-file").onchange = e => { const f = e.target.files[0]; if(!f) return; shrinkPhoto(f, 900).then(u => { pending[pid] = u; img.src = u; }, () => toast("Photo illisible.")); };
+        x.querySelector(".co-x").onclick = () => { T = read(); T.splice(i, 1); pending[pid] = null; draw(); };
+        x.querySelector(".co-up").onclick = () => { T = read(); if(i > 0){ const t = T[i]; T[i] = T[i - 1]; T[i - 1] = t; draw(); } };
+      }); };
+    draw();
+    b.querySelector("#coTAdd").onclick = () => { T = read(); T.push({ pid: uid(), animal: "", dist: "", notes: "" }); draw(); b.querySelector("#coT").lastElementChild.scrollIntoView({ block: "nearest" }); };
+    const del = b.querySelector("#coDel"); if(del) del.onclick = () => confirmBox("Supprimer ce parcours et ses photos ?", "Supprimer").then(ok => { if(ok){ put("config/courses/" + cid, null); put("coursePhotos/" + cid, null); } });
+    b.querySelector("#coOk").onclick = () => {
+      const name = b.querySelector("#coN").value.trim(); if(!name) return toast("Donnez un nom au parcours.");
+      T = read(); if(!T.length) return toast("Ajoutez au moins une cible.");
+      Object.keys(pending).forEach(pid => { put("coursePhotos/" + cid + "/" + pid, pending[pid] || null); });
+      const targets = T.map(t => { const o = { pid: t.pid, animal: t.animal, dist: t.dist, notes: t.notes }; if(pending[t.pid] || (t.photo && pending[t.pid] !== null)) o.photo = true; return o; });
+      put("config/courses/" + cid, { name: name, place: b.querySelector("#coP").value.trim(), targets: targets, hidden: b.querySelector("#coH").checked || null });
+      $("dlg").close(); toast("Parcours enregistré (" + targets.length + " cibles).");
+    };
+  });
+}
+function admArchers(B){
+  const L = Object.keys(archers).filter(k => archers[k] && archers[k].name).sort((a, b) => archers[a].name.localeCompare(archers[b].name, "fr"));
+  B.appendChild(h('<div class="card"><h2>Archers (' + L.length + ')</h2><ul class="list">' + (L.map(k => '<li class="item click" data-a="' + k + '"><div class="main"><b>' + esc(archers[k].name) + '</b><small>' + esc([archers[k].club, BOW_TYPES[archers[k].bow]].filter(Boolean).join(" · ")) + '</small></div><span class="muted">›</span></li>').join("") || '<li class="empty">Aucun archer.</li>') + '</ul></div>'));
+  B.querySelectorAll("[data-a]").forEach(li => li.onclick = () => { const id = li.dataset.a, a = archers[id];
+    dialog('<h2>' + esc(a.name) + '</h2><label class="f">Nom</label><input class="in" id="xN" maxlength="40" value="' + esc(a.name) + '"><label class="f">Club</label><input class="in" id="xC" maxlength="40" value="' + esc(a.club || "") + '"><label class="f">Type d\'arc</label><select class="in" id="xB">' + Object.keys(BOW_TYPES).map(k => '<option value="' + k + '"' + (k === a.bow ? " selected" : "") + '>' + BOW_TYPES[k] + '</option>').join("") + '</select>' +
+      '<label class="f">Nouveau NIP (oubli)</label><input class="in" id="xP" inputmode="numeric" maxlength="4" placeholder="Laisser vide pour garder">' +
+      '<div class="row" style="margin-top:.6rem"><a class="btn sm" href="#/a/' + id + '" id="xSee">Voir ses séances</a></div>' +
+      '<div class="acts"><button class="btn danger" id="xDel">Supprimer</button><button class="btn pri" id="xOk">Enregistrer</button></div>',
+    b => { b.querySelector("#xSee").onclick = () => $("dlg").close();
+      b.querySelector("#xDel").onclick = () => confirmBox("Supprimer " + a.name + " avec toutes ses séances et son matériel ?", "Supprimer").then(ok => { if(ok){ put("archers/" + id, null); put("sessions/" + id, null); put("gear/" + id, null); toast("Archer supprimé."); } });
+      b.querySelector("#xOk").onclick = () => { const n = b.querySelector("#xN").value.trim(), pin = b.querySelector("#xP").value.trim(); if(n.length < 2) return toast("Nom trop court."); if(pin && !/^\d{4}$/.test(pin)) return toast("Le NIP doit avoir 4 chiffres.");
+        put("archers/" + id + "/name", n); put("archers/" + id + "/club", b.querySelector("#xC").value.trim()); put("archers/" + id + "/bow", b.querySelector("#xB").value); if(pin) put("archers/" + id + "/pin", pin); $("dlg").close(); toast("Enregistré."); }; }); });
+}
+function admOther(B){
+  B.appendChild(h('<div class="card"><h2>Autres</h2><p class="small muted">En mode administrateur, vous pouvez aussi ouvrir et corriger la séance de n\'importe quel archer (Accueil → Archers), et modifier ou supprimer toutes les compétitions.</p><label class="f">Changer le mot de passe administrateur</label><input class="in" id="oP" type="password" maxlength="40"><button class="btn sm" id="oOk" style="margin-top:.5rem">Enregistrer</button></div>'));
+  $("oOk").onclick = () => { const p = $("oP").value; if(p.length < 6) return toast("6 caractères minimum."); put("config/adminPwd", p); LS.set("sg_adminPwd", p); CFG.adminPwd = p; toast("Mot de passe changé."); };
+}
+
 /* ================= Démarrage ================= */
 function boot(){
   initDB(); renderWho();
@@ -978,6 +1235,9 @@ function boot(){
   $("themeBtn").onclick = () => { const t = document.documentElement.getAttribute("data-theme") === "dark" ? "light" : "dark"; document.documentElement.setAttribute("data-theme", t); LS.set("sg_theme", t); try{ localStorage.setItem("sg_theme", t); }catch(e){} $("themeBtn").textContent = t === "dark" ? "☀️" : "🌙"; };
   $("themeBtn").textContent = document.documentElement.getAttribute("data-theme") === "dark" ? "☀️" : "🌙";
   if(DB){ try{ DB.ref(".info/connected").on("value", s => { online = !!s.val(); $("netDot").classList.toggle("on", online); $("netDot").title = online ? "En ligne" : "Hors ligne — les tirs seront envoyés au retour du réseau"; }); }catch(e){} }
+  $("adminBtn").onclick = () => location.hash = "#/admin";
+  if(DB){ const W0 = ref("config"); W0.on("value", s => { const c = obj(s.val()); const before = JSON.stringify(CFG); CFG = { rounds: obj(c.rounds), places: obj(c.places), courses: obj(c.courses), adminPwd: c.adminPwd || "" }; LS.set("sg_cfg", CFG);
+    $("adminBtn").hidden = !isAdmin(); if(before !== JSON.stringify(CFG) && !/^#\/(s|admin)\//.test(location.hash) && location.hash.indexOf("#/admin") !== 0 && location.hash.indexOf("#/s/") !== 0) route(); }); }
   window.addEventListener("hashchange", route);
   route();
   if("serviceWorker" in navigator && location.protocol === "https:" && !window.__DB) navigator.serviceWorker.register("sw.js").catch(() => {});

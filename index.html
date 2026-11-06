@@ -1,7 +1,7 @@
 <!doctype html>
 <html lang="fr" data-theme="dark">
 <head>
-<meta name="build" content="202611061102">
+<meta name="build" content="202611061118">
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover,user-scalable=no">
 <title>Sagittaire</title>
@@ -211,7 +211,7 @@ dialog::backdrop{background:rgba(5,10,20,.6)}
 <script>
 (function(){
 "use strict";
-var BUILD = "202611061102";
+var BUILD = "202611061118";
 /* ================= Utilitaires ================= */
 const $ = id => document.getElementById(id);
 const esc = s => String(s == null ? "" : s).replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
@@ -452,7 +452,48 @@ function route(){
 function keepArchers(){ sub("archers", v => { archers = obj(v); archersLoaded = true; if(me && archers[me.id] && archers[me.id].name !== me.name) setMe({ id: me.id, name: archers[me.id].name }); }); }
 
 /* ================= Calculs ================= */
-function sessionArrows(s){ const out = []; arr(s && s.ends).forEach((e, i) => arr(e && e.a).forEach(a => { if(a) out.push(Object.assign({ end: i, part: e.part || 0 }, a)); })); return out; }
+// Chaque flèche garde son rang de tir dans la volée (i : 0 = 1re tirée) — l'ordre d'entrée est l'ordre de tir
+function sessionArrows(s){ const out = []; arr(s && s.ends).forEach((e, ei) => arr(e && e.a).forEach((a, k) => { if(a) out.push(Object.assign({ end: ei, part: e.part || 0, i: k }, a)); })); return out; }
+const ORD = n => n === 1 ? "1re" : n + "e";
+function dirWords(dx, dy){ const w = []; if(Math.abs(dy) >= Math.abs(dx) * 0.5) w.push(dy > 0 ? "bas" : "haut"); if(Math.abs(dx) >= Math.abs(dy) * 0.5) w.push(dx > 0 ? "droite" : "gauche"); return w.join("-"); }
+/* Analyse selon l'ordre de tir : moyenne, % de 10, dispersion et décalage de chaque rang (1re, 2e, 3e…) */
+function orderAnalysis(A, face, size){
+  const F = FACES[face] || FACES.wa10, R = F.rcm(size || F.def), top = maxScore(face) === 11 ? 10 : maxScore(face), g = grouping(A, face, size);
+  const by = {}; A.forEach(a => { const k = a.i || 0; (by[k] = by[k] || []).push(a); });
+  const rows = Object.keys(by).map(Number).sort((x, y) => x - y).map(k => { const L = by[k], P = L.filter(a => !a.k && a.x != null);
+    const o = { k: k, n: L.length, avg: L.reduce((t, a) => t + arrowVal(a), 0) / L.length, p10: L.filter(a => a.s >= top).length / L.length, miss: L.filter(a => !a.s).length };
+    if(g && P.length >= 3){ const mx = P.reduce((t, a) => t + a.x, 0) / P.length, my = P.reduce((t, a) => t + a.y, 0) / P.length;
+      o.dx = (mx - g.mx) * R; o.dy = (my - g.my) * R; o.rad = P.reduce((t, a) => t + Math.hypot(a.x - mx, a.y - my), 0) / P.length * R; o.np = P.length; }
+    return o; }).filter(o => o.n >= 3);
+  const all = A.length ? A.reduce((t, a) => t + arrowVal(a), 0) / A.length : 0, notes = [];
+  rows.forEach(o => {
+    const others = A.filter(a => (a.i || 0) !== o.k), oa = others.length ? others.reduce((t, a) => t + arrowVal(a), 0) / others.length : all, d = o.avg - oa;
+    const off = o.dx != null ? Math.hypot(o.dx, o.dy) : 0, sig = o.dx != null && off >= 1.5 && g && off >= g.cmRad * 0.3;
+    if(d <= -0.35 || sig){
+      let why = o.k === 0 ? "départ trop rapide (pas assez de temps pour s'installer) ?" : (o.k === rows.length - 1 && rows.length >= 3 ? "fatigue ou relâchement en fin de volée ?" : "perte de concentration au milieu de la volée ?");
+      notes.push("⚠ <b>" + ORD(o.k + 1) + " flèche</b> : " + (d <= -0.35 ? dec(Math.abs(d)) + " point de moins que les autres" : "") + (d <= -0.35 && sig ? ", et elle " : (sig ? "Elle " : "")) + (sig ? "tombe " + dec(off, 1) + " cm vers le " + dirWords(o.dx, o.dy) + " du groupement" : "") + " — " + why);
+    }
+  });
+  const best = rows.slice().sort((x, y) => y.avg - x.avg)[0];
+  if(best && rows.length > 1){ const oth = A.filter(a => (a.i || 0) !== best.k), d = best.avg - (oth.length ? oth.reduce((t, a) => t + arrowVal(a), 0) / oth.length : all); if(d >= 0.35) notes.push("✅ <b>" + ORD(best.k + 1) + " flèche</b> : votre meilleure (+" + dec(d) + " point par rapport aux autres)."); }
+  // dérèglement répété : décalage constant dans la même direction pour un même rang
+  return { rows: rows, notes: notes, g: g };
+}
+function orderTable(oa){
+  if(!oa.rows.length) return '<p class="empty">Il faut au moins 3 volées pour comparer l\'ordre de tir.</p>';
+  return '<div style="overflow-x:auto"><table class="ends"><tr><th>Rang</th><th>Flèches</th><th>Moy.</th><th>% 10</th><th>M</th><th>Disp.</th><th>Décalage</th></tr>' +
+    oa.rows.map(o => '<tr><td><b>' + ORD(o.k + 1) + '</b></td><td>' + o.n + '</td><td class="et">' + dec(o.avg) + '</td><td>' + Math.round(o.p10 * 100) + ' %</td><td>' + o.miss + '</td><td>' + (o.rad != null ? dec(o.rad, 1) + " cm" : "—") + '</td><td>' + (o.dx != null ? (Math.hypot(o.dx, o.dy) < 0.5 ? "centré" : dec(Math.hypot(o.dx, o.dy), 1) + " cm " + dirWords(o.dx, o.dy)) : "—") + '</td></tr>').join("") + '</table></div>' +
+    (oa.notes.length ? oa.notes.map(n => '<div class="advice">' + n + '</div>').join("") : '<p class="small muted">Aucun écart marqué selon l\'ordre de tir : belle régularité.</p>') +
+    '<p class="small muted">Disp. = dispersion des flèches de ce rang ; Décalage = où elles tombent par rapport à l\'ensemble du groupement.</p>';
+}
+// Au fil de la séance : début / milieu / fin (fatigue, échauffement)
+function phaseAnalysis(list){ // list : [{v, f}] f = position 0..1 dans la séance
+  if(list.length < 18) return null;
+  const B = [[0, 1 / 3, "Début"], [1 / 3, 2 / 3, "Milieu"], [2 / 3, 1.01, "Fin"]].map(b => { const L = list.filter(x => x.f >= b[0] && x.f < b[1]); return { l: b[2], n: L.length, avg: L.length ? L.reduce((t, x) => t + x.v, 0) / L.length : 0 }; });
+  let note = ""; if(B[2].n && B[1].n && B[2].avg < B[1].avg - 0.3) note = "⚠ Baisse en fin de séance (" + dec(B[1].avg - B[2].avg) + " point par flèche) : fatigue physique ou mentale ? Pensez aux pauses, à l'hydratation et à la préparation physique.";
+  else if(B[0].n && B[1].n && B[0].avg < B[1].avg - 0.3) note = "⚠ Début plus faible (" + dec(B[1].avg - B[0].avg) + " point par flèche) : échauffement trop court ?";
+  return { b: B, note: note };
+}
 function sessionSummary(s){
   const ends = arr(s && s.ends).filter(e => e && arr(e.a).length), A = sessionArrows(s);
   const tot = A.reduce((t, a) => t + arrowVal(a), 0), n = A.length;
@@ -789,6 +830,7 @@ function viewShoot(v, aid, sid){
       kpi(sm.tot, "Total") + kpi(dec(sm.avg), "Moy./flèche") + kpi(sm.ends ? dec(sm.tot / sm.ends, 1) : "—", "Moy./volée") + kpi(sm.x + " / " + sm.t10, "X / 10") + kpi(sm.n, "Flèches") + kpi(sm.miss, "Manquées") + '</div>' +
       '<h3>Répartition</h3><div class="bars" style="margin-bottom:1.4rem">' + labels.map(l => '<div style="height:' + ((dist[l] || 0) / mxd * 100) + '%;' + pillStyle(p.face, l === "M" ? { s: 0 } : { s: l === "X" ? (p.face === "bead" ? 11 : 10) : Number(l) }) + '"><em>' + (dist[l] || "") + '</em><span>' + l + '</span></div>').join("") + '</div>' +
       (g && g.n >= 6 ? '<h3>Groupement</h3><p class="small muted" style="margin:.2rem 0">Rayon moyen : <b>' + dec(g.cmRad, 1) + ' cm</b> · centre : ' + dec(Math.abs(g.cmx), 1) + ' cm ' + (g.cmx >= 0 ? "droite" : "gauche") + ', ' + dec(Math.abs(g.cmy), 1) + ' cm ' + (g.cmy <= 0 ? "haut" : "bas") + ' (◎ pour le voir sur la cible)</p><div class="advice">' + sightAdvice(g) + '</div>' : "") +
+      (sm.ends >= 3 ? '<h3>Ordre de tir</h3>' + orderTable(orderAnalysis(A.filter(a => (arr(S.parts)[a.part] || p).face === p.face), p.face, p.size)) : "") +
       (nums.length ? '<h3>Analyse par flèche</h3><div class="chips">' + nums.map(o => '<span class="chip' + (o.bad ? " on" : "") + '" title="' + o.c + ' tirs">#' + o.n + " · " + dec(o.d, 1) + ' cm' + (o.bad ? " ⚠" : "") + '</span>').join("") + '</div><p class="small muted">Distance moyenne au centre du groupement. ⚠ = flèche qui s\'écarte souvent : vérifiez la pointe, l\'encoche et les plumes.</p>' : "");
   }
   function shTot(sm){ sm = sm || sessionSummary(S); const live = editIdx < 0 ? cur.reduce((t, a) => t + arrowVal(a), 0) : 0;
@@ -944,6 +986,11 @@ function viewStats(v, aid){
   v.appendChild(h('<div class="hero" id="stHero"></div>'));
   v.appendChild(h('<div class="card"><h2>Progression (moyenne par flèche)</h2><div class="chart" id="stChart"></div></div>'));
   v.appendChild(h('<div class="card"><h2>Toutes les flèches</h2><p class="small muted" style="margin-top:-.3rem">Nuage des impacts sur la période, avec le centre et l\'étendue du groupement.</p><svg class="mini-tgt" id="stTgt" viewBox="-1.1 -1.1 2.2 2.2"></svg><div id="stAdvice"></div></div>'));
+  v.appendChild(h('<div class="card"><h2>Ordre de tir dans la volée</h2><p class="small muted" style="margin-top:-.3rem">1re, 2e, 3e flèche… : départ trop rapide, fatigue en fin de volée ou dérèglement qui revient toujours au même rang.</p><div id="stOrder"></div></div>'));
+  v.appendChild(h('<div class="card"><h2>Au fil de la séance</h2><div id="stPhase"></div></div>'));
+  v.appendChild(h('<div class="card"><h2>Répartition et régularité</h2><div id="stDistrib"></div></div>'));
+  v.appendChild(h('<div class="card"><h2>Flèches numérotées</h2><div id="stNums"></div></div>'));
+  v.appendChild(h('<div class="card"><h2>Toutes les distances</h2><div id="stAllDist"></div></div>'));
   v.appendChild(h('<div class="card"><h2>Records</h2><ul class="list" id="stRec"></ul></div>'));
   let S = {};
   function draw(){
@@ -956,9 +1003,13 @@ function viewStats(v, aid){
     const ks = Object.keys(keys).sort();
     if(distF && !keys[distF]) distF = ""; if(!distF && ks.length) distF = ks[ks.length - 1];
     $("stDist").innerHTML = ks.length ? ks.map(k => '<option value="' + k + '"' + (k === distF ? " selected" : "") + '>' + esc(keys[k]) + '</option>').join("") : '<option>—</option>';
-    const [fd, ff, fs] = distF.split("|"); const A = [], pts = [];
-    ids.forEach(k => { const s = S[k], P = arr(s.parts); let t = 0, n = 0;
-      arr(s.ends).forEach(e => { if(!e) return; const p = P[e.part || 0]; if(!p || String(p.d || 0) !== fd || p.face !== ff || String(p.size) !== fs) return; arr(e.a).forEach(a => { if(!a) return; A.push(a); t += arrowVal(a); n++; }); });
+    const [fd, ff, fs] = distF.split("|"); const A = [], pts = [], ph = [], endAvgs = [], byDist = {};
+    ids.forEach(k => { const s = S[k], P = arr(s.parts); let t = 0, n = 0; const E = arr(s.ends).filter(e => e && arr(e.a).length);
+      E.forEach((e, ei) => { const p = P[e.part || 0]; if(!p) return; const key = (p.d || 0) + "|" + p.face + "|" + p.size, et = arr(e.a).reduce((u, a) => u + arrowVal(a), 0);
+        const bd = byDist[key] = byDist[key] || { ses: {}, n: 0, t: 0, x: 0 }; bd.ses[k] = 1; bd.n += arr(e.a).length; bd.t += et; bd.x += arr(e.a).filter(isX).length;
+        if(String(p.d || 0) !== fd || p.face !== ff || String(p.size) !== fs) return;
+        endAvgs.push(et / arr(e.a).length);
+        arr(e.a).forEach((a, ai) => { if(!a) return; A.push(Object.assign({ i: ai }, a)); t += arrowVal(a); n++; ph.push({ v: arrowVal(a), f: E.length > 1 ? ei / (E.length - 1) * 0.999 : 0.5 }); }); });
       if(n) pts.push({ d: s.date, avg: t / n, n: n, tot: t, id: k, s: s }); });
     const nA = A.length, tot = A.reduce((t, a) => t + arrowVal(a), 0), g = grouping(A, ff || "wa10", Number(fs) || 122);
     $("stHero").innerHTML = [[ids.length, "Séances"], [nA, "Flèches"], [nA ? dec(tot / nA) : "—", "Moy./flèche"], [nA ? Math.round(A.filter(a => a.s >= 10 || (ff === "field" && a.s >= 6)).length / nA * 100) + " %" : "—", "Dans le 10"], [g ? dec(g.cmRad, 1) + " cm" : "—", "Rayon groupement"], [A.filter(isX).length, "X"]].map(x => '<div class="kpi"><b>' + x[0] + '</b><span>' + x[1] + '</span></div>').join("");
@@ -968,6 +1019,19 @@ function viewStats(v, aid){
     A.forEach(a => { if(a.k || a.x == null) return; const q = toView(face, a); dots += '<circle cx="' + q.x + '" cy="' + q.y + '" r=".014" fill="rgba(57,255,136,.45)"/>'; });
     let ell = ""; if(g && g.n >= 4){ const sp = spotCenters(face), c = sp.length === 1 ? sp[0] : sp[1]; ell = '<ellipse cx="' + (c.x + g.mx * c.k) + '" cy="' + (c.y + g.my * c.k) + '" rx="' + g.sx * 2 * c.k + '" ry="' + g.sy * 2 * c.k + '" fill="rgba(0,229,255,.12)" stroke="#00E5FF" stroke-width=".008" stroke-dasharray=".03 .02"/><circle cx="' + (c.x + g.mx * c.k) + '" cy="' + (c.y + g.my * c.k) + '" r=".016" fill="#00E5FF"/>'; }
     $("stTgt").innerHTML = faceSVG(face) + dots + ell;
+    // ordre de tir, au fil de la séance, répartition, flèches numérotées, distances
+    $("stOrder").innerHTML = orderTable(orderAnalysis(A, ff || "wa10", Number(fs) || 122));
+    const pa = phaseAnalysis(ph);
+    $("stPhase").innerHTML = pa ? '<div class="bars" style="height:90px;margin-bottom:1.4rem">' + pa.b.map(b => '<div style="height:' + (b.avg / maxScore(ff || "wa10") * 100) + '%;background:var(--blue)"><em>' + (b.n ? dec(b.avg) : "") + '</em><span>' + b.l + '</span></div>').join("") + '</div>' + (pa.note ? '<div class="advice">' + pa.note + '</div>' : '<p class="small muted">Moyenne par flèche stable du début à la fin des séances.</p>') : '<p class="empty">Pas encore assez de flèches.</p>';
+    const F2 = FACES[ff || "wa10"], labels = ((ff || "wa10") === "bead" ? [] : ["X"]).concat(F2.rings.map(r => String(r.s)).reverse()).concat(["M"]), dist = {}; A.forEach(a => { const l = arrowLabel(a); dist[l] = (dist[l] || 0) + 1; });
+    const mxd = Math.max.apply(null, labels.map(l => dist[l] || 0).concat([1]));
+    const mean = endAvgs.length ? endAvgs.reduce((t, x) => t + x, 0) / endAvgs.length : 0, sd = endAvgs.length > 1 ? Math.sqrt(endAvgs.reduce((t, x) => t + (x - mean) ** 2, 0) / (endAvgs.length - 1)) : 0;
+    $("stDistrib").innerHTML = nA ? '<div class="bars" style="margin-bottom:1.4rem">' + labels.map(l => '<div style="height:' + ((dist[l] || 0) / mxd * 100) + '%;' + pillStyle(ff || "wa10", l === "M" ? { s: 0 } : { s: l === "X" ? 10 : Number(l) }) + '"><em>' + (dist[l] ? Math.round(dist[l] / nA * 100) + "%" : "") + '</em><span>' + l + '</span></div>').join("") + '</div>' +
+      '<div class="hero" style="margin:0">' + [[endAvgs.length, "Volées"], [dec(sd), "Écart-type / flèche"], [endAvgs.length ? dec(Math.min.apply(null, endAvgs)) + "–" + dec(Math.max.apply(null, endAvgs)) : "—", "Pire–meilleure volée"]].map(x => '<div class="kpi"><b style="font-size:1.05rem">' + x[0] + '</b><span>' + x[1] + '</span></div>').join("") + '</div><p class="small muted">Plus l\'écart-type est petit, plus vos volées sont régulières.</p>' : '<p class="empty">Aucune flèche.</p>';
+    const nr = arrowNumberReport(A, g);
+    $("stNums").innerHTML = nr.length ? '<div class="chips">' + nr.map(o => '<span class="chip' + (o.bad ? " on" : "") + '">#' + o.n + " · " + dec(o.d, 1) + " cm · " + o.c + " tirs" + (o.bad ? " ⚠" : "") + '</span>').join("") + '</div><p class="small muted">Distance moyenne au centre du groupement sur la période. ⚠ = flèche qui s\'écarte souvent.</p>' : '<p class="empty">Numérotez vos flèches (Matériel) et choisissez le numéro en tirant pour voir cette analyse.</p>';
+    const dk = Object.keys(byDist).sort();
+    $("stAllDist").innerHTML = dk.length ? '<div style="overflow-x:auto"><table class="ends"><tr><th style="text-align:left">Distance / blason</th><th>Séances</th><th>Flèches</th><th>Moy.</th><th>X</th></tr>' + dk.map(k => { const o = byDist[k], pz = k.split("|"); return '<tr' + (k === distF ? ' class="cur"' : "") + '><td style="text-align:left">' + (pz[0] !== "0" ? pz[0] + " m · " : "") + esc(FACES[pz[1]].name) + " " + pz[2] + ' cm</td><td>' + Object.keys(o.ses).length + '</td><td>' + o.n + '</td><td class="et">' + dec(o.t / o.n) + '</td><td>' + o.x + '</td></tr>'; }).join("") + '</table></div>' : '<p class="empty">—</p>';
     $("stAdvice").innerHTML = g ? '<div class="advice">' + sightAdvice(g) + '</div>' : '<p class="empty">Pas encore assez de flèches placées sur la cible.</p>';
     // records
     const best = pts.slice().sort((a, b) => b.tot - a.tot)[0], bestAvg = pts.filter(p => p.n >= 12).sort((a, b) => b.avg - a.avg)[0];

@@ -1,7 +1,7 @@
 <!doctype html>
 <html lang="fr" data-theme="dark">
 <head>
-<meta name="build" content="202611061644">
+<meta name="build" content="202611072020">
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover,user-scalable=no">
 <title>Sagittaire</title>
@@ -213,7 +213,7 @@ li.dragging{background:color-mix(in srgb,var(--accent) 18%,var(--surface));box-s
 <script>
 (function(){
 "use strict";
-var BUILD = "202611061644";
+var BUILD = "202611072020";
 /* ================= Utilitaires ================= */
 const $ = id => document.getElementById(id);
 const esc = s => String(s == null ? "" : s).replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
@@ -1207,16 +1207,20 @@ function viewComp(v, cid){
 }
 
 /* ================= Administration ================= */
+// Identifiant de l'administrateur : « admins » (modifiable dans Administration → Autres)
+const adminUser = () => String(CFG.adminUser || "admins").toLowerCase();
 function adminLogin(){
   if(isAdmin()){ adminOn = false; LS.set("sg_admin", false); toast("Mode administrateur désactivé."); route(); return; }
   const first = !CFG.adminPwd;
-  dialog('<h2>🛠 Administrateur</h2><p class="muted small">' + (first ? "Aucun mot de passe n\'existe encore : choisissez-en un (6 caractères ou plus). Gardez-le pour vous." : "Entrez le mot de passe administrateur.") + '</p>' +
-    '<input class="in" id="adP" type="password" autocomplete="current-password" maxlength="40">' + (first ? '<label class="f">Confirmer</label><input class="in" id="adP2" type="password" maxlength="40">' : "") +
+  dialog('<h2>🛠 Administrateur</h2><p class="muted small">' + (first ? "Aucun mot de passe n\'existe encore : identifiant « " + adminUser() + " », puis choisissez un mot de passe (6 caractères ou plus). Gardez-le pour vous." : "Entrez l\'identifiant et le mot de passe administrateur.") + '</p>' +
+    '<label class="f">Identifiant</label><input class="in" id="adU" autocomplete="username" autocapitalize="none" maxlength="30" value="">' +
+    '<label class="f">Mot de passe</label><input class="in" id="adP" type="password" autocomplete="current-password" maxlength="40">' + (first ? '<label class="f">Confirmer</label><input class="in" id="adP2" type="password" maxlength="40">' : "") +
     '<div class="acts"><button class="btn" data-close>Annuler</button><button class="btn pri" id="adOk">Entrer</button></div>',
   b => { const go = () => {
-      const pw = b.querySelector("#adP").value;
+      const pw = b.querySelector("#adP").value, u = b.querySelector("#adU").value.trim().toLowerCase();
+      if(u !== adminUser()) return toast(first ? "L'identifiant administrateur est « " + adminUser() + " »." : "Identifiant ou mot de passe incorrect.");
       if(first){ if(pw.length < 6) return toast("6 caractères minimum."); if(pw !== b.querySelector("#adP2").value) return toast("Les deux mots de passe diffèrent."); put("config/adminPwd", pw); CFG.adminPwd = pw; }
-      else if(pw !== CFG.adminPwd) return toast("Mot de passe incorrect.");
+      else if(pw !== CFG.adminPwd) return toast("Identifiant ou mot de passe incorrect.");
       LS.set("sg_adminPwd", pw); adminOn = true; LS.set("sg_admin", true); $("dlg").close(); toast("Mode administrateur activé."); location.hash = "#/admin"; route(); };
     b.querySelector("#adOk").onclick = go; b.querySelector("#adP").onkeydown = e => { if(e.key === "Enter" && !first) go(); }; });
 }
@@ -1374,7 +1378,8 @@ function admArchers(B){
         put("archers/" + id + "/name", n); put("archers/" + id + "/club", b.querySelector("#xC").value.trim()); put("archers/" + id + "/bow", b.querySelector("#xB").value); if(pin) put("archers/" + id + "/pin", pin); $("dlg").close(); toast("Enregistré."); }; }); });
 }
 function admOther(B){
-  B.appendChild(h('<div class="card"><h2>Autres</h2><p class="small muted">En mode administrateur, vous pouvez aussi ouvrir et corriger la séance de n\'importe quel archer (Accueil → Archers), et modifier ou supprimer toutes les compétitions.</p><label class="f">Changer le mot de passe administrateur</label><input class="in" id="oP" type="password" maxlength="40"><button class="btn sm" id="oOk" style="margin-top:.5rem">Enregistrer</button></div>'));
+  B.appendChild(h('<div class="card"><h2>Autres</h2><p class="small muted">En mode administrateur, vous pouvez aussi ouvrir et corriger la séance de n\'importe quel archer (Accueil → Archers), et modifier ou supprimer toutes les compétitions.</p><label class="f">Identifiant administrateur</label><input class="in" id="oU" maxlength="30" autocapitalize="none" value="' + esc(adminUser()) + '"><button class="btn sm" id="oUOk" style="margin-top:.5rem">Enregistrer l\'identifiant</button><label class="f">Changer le mot de passe administrateur</label><input class="in" id="oP" type="password" maxlength="40"><button class="btn sm" id="oOk" style="margin-top:.5rem">Enregistrer</button></div>'));
+  $("oUOk").onclick = () => { const u = $("oU").value.trim().toLowerCase(); if(!/^[a-z0-9._-]{3,30}$/.test(u)) return toast("3 caractères minimum, sans espace ni accent."); put("config/adminUser", u); CFG.adminUser = u; toast("Identifiant changé : « " + u + " »."); };
   $("oOk").onclick = () => { const p = $("oP").value; if(p.length < 6) return toast("6 caractères minimum."); put("config/adminPwd", p); LS.set("sg_adminPwd", p); CFG.adminPwd = p; toast("Mot de passe changé."); };
 }
 
@@ -1386,7 +1391,7 @@ function boot(){
   $("themeBtn").textContent = document.documentElement.getAttribute("data-theme") === "dark" ? "☀️" : "🌙";
   if(DB){ try{ DB.ref(".info/connected").on("value", s => { online = !!s.val(); $("netDot").classList.toggle("on", online); $("netDot").title = online ? "En ligne" : "Hors ligne — les tirs seront envoyés au retour du réseau"; }); }catch(e){} }
   $("adminBtn").onclick = () => location.hash = "#/admin";
-  if(DB){ const W0 = ref("config"); W0.on("value", s => { const c = obj(s.val()); const before = JSON.stringify(CFG); CFG = { rounds: obj(c.rounds), places: obj(c.places), courses: obj(c.courses), roundOrder: arr(c.roundOrder), adminPwd: c.adminPwd || "" }; LS.set("sg_cfg", CFG);
+  if(DB){ const W0 = ref("config"); W0.on("value", s => { const c = obj(s.val()); const before = JSON.stringify(CFG); CFG = { rounds: obj(c.rounds), places: obj(c.places), courses: obj(c.courses), roundOrder: arr(c.roundOrder), adminPwd: c.adminPwd || "", adminUser: c.adminUser || "" }; LS.set("sg_cfg", CFG);
     $("adminBtn").hidden = !isAdmin(); if(before !== JSON.stringify(CFG) && !/^#\/(s|admin)\//.test(location.hash) && location.hash.indexOf("#/admin") !== 0 && location.hash.indexOf("#/s/") !== 0) route(); }); }
   window.addEventListener("hashchange", route);
   route();
